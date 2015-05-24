@@ -1,0 +1,700 @@
+<HTML
+><HEAD
+><TITLE
+>        Testing FOS
+      </TITLE
+><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.54"><LINK
+REL="HOME"
+TITLE="piranha"
+HREF="index.html"><LINK
+REL="UP"
+TITLE="      Failover Services (FOS)
+    "
+HREF="ch-fos.html"><LINK
+REL="PREVIOUS"
+TITLE="        Setting up an FOS Cluster
+      "
+HREF="x2670.html"><LINK
+REL="NEXT"
+TITLE="        Trouble-shooting FOS
+      "
+HREF="x3468.html"></HEAD
+><BODY
+CLASS="SECT1"
+BGCOLOR="#FFFFFF"
+TEXT="#000000"
+LINK="#0000FF"
+VLINK="#840084"
+ALINK="#0000FF"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="3"
+ALIGN="center"
+>piranha  </TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="bottom"
+><A
+HREF="x2670.html"
+>Prev</A
+></TD
+><TD
+WIDTH="80%"
+ALIGN="center"
+VALIGN="bottom"
+>  Failover Services (FOS)</TD
+><TD
+WIDTH="10%"
+ALIGN="right"
+VALIGN="bottom"
+><A
+HREF="x3468.html"
+>Next</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="AEN3296"
+>Testing FOS</A
+></H1
+><P
+>        While configuring FOS is a relatively straightforward process, unless
+        care is taken it is easy to define a non-functioning cluster, or one
+        that "ping-pongs" a failover back and forth between the nodes. This is
+        partly because all the services failover as a group, so in order for FOS
+        to operate, all services on at least one node in the cluster must come
+        up correctly. If one service on node <TT
+CLASS="REPLACEABLE"
+><I
+>A</I
+></TT
+> fails
+        to come up (due to a configuration error), and a failover occurs, but a
+        different service on node <TT
+CLASS="REPLACEABLE"
+><I
+>B</I
+></TT
+> also fails to
+        come up, then the result is a cluster where neither node comes up
+        correctly and failover will bounce back and forth.
+      </P
+><P
+>        Before starting Piranha using a newly created or modified configuration
+        file, some basic tests should be performed first. These tests should be
+        carried out on both nodes in the cluster.
+      </P
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="AEN3308"
+>Synchronize Configuration Files</A
+></H2
+><P
+>          Ensure that both systems are using the same configuration by copying
+          the piranha configuration file to the other cluster node(s).  You can
+          use either <B
+CLASS="COMMAND"
+>rcp</B
+> or <B
+CLASS="COMMAND"
+>scp</B
+>, depending
+          on whether you've configured <B
+CLASS="COMMAND"
+>rsh</B
+> or
+          <B
+CLASS="COMMAND"
+>ssh</B
+>:
+
+          <TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="SCREEN"
+><TT
+CLASS="PROMPT"
+># </TT
+><TT
+CLASS="USERINPUT"
+><B
+>rcp /etc/sysconfig/ha/lvs.cf <TT
+CLASS="REPLACEABLE"
+><I
+>other.cluster.node</I
+></TT
+>:/etc/sysconfig/ha/lvs.cf</B
+></TT
+>
+<TT
+CLASS="COMPUTEROUTPUT"
+><TT
+CLASS="REPLACEABLE"
+><I
+>other.cluster.node</I
+></TT
+>: Connection refused
+Trying krb4 rcp...
+<TT
+CLASS="REPLACEABLE"
+><I
+>other.cluster.node</I
+></TT
+>: Connection refused
+trying normal rcp (/usr/bin/rcp)</TT
+>
+<TT
+CLASS="PROMPT"
+># </TT
+>
+          </PRE
+></TD
+></TR
+></TABLE
+>
+        </P
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="S2-FOS-START-STOP"
+>Starting and Stopping Services Manually</A
+></H2
+><P
+>          Without Piranha running, bring up the IP services by manually typing
+          the same command that is defined in the <B
+CLASS="COMMAND"
+>start_cmd</B
+>
+          line for each service's entry in the configuration file. Then use the
+          <B
+CLASS="COMMAND"
+>ps</B
+> command and make sure the services are running
+          as expected.
+        </P
+><P
+>          Next, type the same command that is defined in the
+          <B
+CLASS="COMMAND"
+>stop_cmd</B
+> line for each service's entry in the
+          configuration file.  Then use the <B
+CLASS="COMMAND"
+>ps</B
+> command to
+          make sure the services have been shut down properly.
+        </P
+><P
+>          To continue testing, bring up the IP services again by manually typing
+          the same command that is defined in the <B
+CLASS="COMMAND"
+>start_cmd</B
+>
+          line for each service's entry in the configuration file.
+        </P
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="AEN3348"
+>Using telnet to Test <B
+CLASS="COMMAND"
+>send</B
+> and
+          <B
+CLASS="COMMAND"
+>expect</B
+> Strings</A
+></H2
+><P
+>          This test ensures that the port used by each service is correct, and
+          that the strings used in service monitoring reflect the actual
+          behavior of each service. One of the most common configuration errors
+          is that a service's port number (as defined in the cluster configuration
+          file) does not match the port number actually used by the service.
+        </P
+><P
+>          With the services already running (see <A
+HREF="x3296.html#S2-FOS-START-STOP"
+>the section called <I
+>Starting and Stopping Services Manually</I
+></A
+>), use the <B
+CLASS="COMMAND"
+>telnet</B
+>
+            command to attempt to connect to that service's TCP/IP port number
+            (as defined in the configuration file).  For example, if your
+            cluster is providing http service on port 4040, use the following
+            command to confirm that port 4040 is, in fact, in use:
+        </P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="SCREEN"
+><TT
+CLASS="PROMPT"
+># </TT
+><TT
+CLASS="USERINPUT"
+><B
+>telnet localhost 4040</B
+></TT
+>
+<TT
+CLASS="COMPUTEROUTPUT"
+>Trying 127.0.0.1...
+Connected to localhost (127.0.0.1).
+Escape character is '^]'.</TT
+>
+        </PRE
+></TD
+></TR
+></TABLE
+><P
+>          Because we didn't get a <SPAN
+CLASS="ERRORNAME"
+>Connection refused</SPAN
+>
+          error message, we can be confident that a service is using port 4040
+          <A
+NAME="AEN3368"
+HREF="#FTN.AEN3368"
+>[1]</A
+>
+          .
+          At this point, we can disconnect from the port in this manner:
+        </P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="100%"
+><TR
+><TD
+><PRE
+CLASS="SCREEN"
+><TT
+CLASS="USERINPUT"
+><B
+>^]</B
+></TT
+>
+
+<TT
+CLASS="PROMPT"
+>telnet&#62; </TT
+><TT
+CLASS="USERINPUT"
+><B
+>quit</B
+></TT
+>
+<TT
+CLASS="COMPUTEROUTPUT"
+>Connection closed.</TT
+>
+<TT
+CLASS="PROMPT"
+># </TT
+>
+        </PRE
+></TD
+></TR
+></TABLE
+><DIV
+CLASS="NOTE"
+><P
+></P
+><TABLE
+CLASS="NOTE"
+WIDTH="100%"
+BORDER="0"
+><TR
+><TD
+WIDTH="25"
+ALIGN="CENTER"
+VALIGN="TOP"
+><IMG
+SRC="./stylesheet-images/note.gif"
+HSPACE="5"
+ALT="Note"></TD
+><TH
+ALIGN="LEFT"
+VALIGN="CENTER"
+><B
+>Please Note</B
+></TH
+></TR
+><TR
+><TD
+>&nbsp;</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+><P
+>            When <TT
+CLASS="APPLICATION"
+>telnet</TT
+> is used to connect to some
+            services, you may find you cannot disconnect.  In this case, you
+            will have to use the <B
+CLASS="COMMAND"
+>kill</B
+> command on
+            <TT
+CLASS="APPLICATION"
+>telnet</TT
+>.
+          </P
+></TD
+></TR
+></TABLE
+></DIV
+><P
+>          If you <I
+CLASS="EMPHASIS"
+>did</I
+> get a <SPAN
+CLASS="ERRORNAME"
+>Connection
+            refused</SPAN
+> message, then the service you started is not
+            using that port and Piranha will fail to connect also.  On the other
+            hand, if <TT
+CLASS="APPLICATION"
+>telnet</TT
+> did connect sucessfully,
+            then FOS will be able to connect as well.
+        </P
+><P
+>          Note, however, that not every service can be considered
+          "telnet-friendly" &#8212; some services may drop the connection after
+          a period of time, or there might be no response at all (try pressing
+          <B
+CLASS="KEYCAP"
+>Enter</B
+> several times).  This does not necessarily
+          indicate that the service is not functioning.  Some services simply
+          cannot be accessed in an interactive <TT
+CLASS="APPLICATION"
+>telnet</TT
+>
+          session.
+        </P
+><P
+>          As a final test, try using <TT
+CLASS="APPLICATION"
+>telnet</TT
+> to
+          connect to the service from the <I
+CLASS="EMPHASIS"
+>other</I
+> cluster
+          node.  If this fails, then FOS will also fail. Resolve any problems
+          preventing telnet from connecting and it is likely that the
+          <TT
+CLASS="APPLICATION"
+>nanny</TT
+> daemon will also be able to connect.
+        </P
+><P
+>          If you have defined <B
+CLASS="COMMAND"
+>send</B
+> strings for a service, you
+          can try typing the contents of the <B
+CLASS="COMMAND"
+>send</B
+> string and
+          see if it the service responds appropriately.  However, in some cases
+          you will not be able to type it fast enough to prevent the connection
+          from timing out and failing to process what you've typed. This does
+          not necessarily indicate that there is any problem; just that you
+          cannot use <TT
+CLASS="APPLICATION"
+>telnet</TT
+> to test.  The only way to
+          be sure is to see if the <TT
+CLASS="APPLICATION"
+>nanny</TT
+> daemon can
+          use the <B
+CLASS="COMMAND"
+>send</B
+> and <B
+CLASS="COMMAND"
+>expect</B
+> strings
+          sucessfully.
+        </P
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="AEN3401"
+>Using <B
+CLASS="COMMAND"
+>ps</B
+> and Log Files</A
+></H2
+><P
+>          Start Piranha by starting the <TT
+CLASS="APPLICATION"
+>pulse</TT
+> daemon
+          on one cluster node (have that node unplugged from the network if
+          necessary). Depending on the node you are using, FOS will either
+          attempt to start the IP services right away, or will start the
+          <TT
+CLASS="APPLICATION"
+>nanny</TT
+> daemon(s), which will then timeout,
+          initiate a failover, and start the IP services.  In either case, you
+          should end up with a running environment where
+          <TT
+CLASS="APPLICATION"
+>pulse</TT
+> is running,
+          <TT
+CLASS="APPLICATION"
+>fos</TT
+> is running in
+          <B
+CLASS="COMMAND"
+>--active</B
+> mode, and the IP service(s) are up. You
+          should be able to see this using the <B
+CLASS="COMMAND"
+>ps -axw</B
+>
+          command.
+        </P
+><P
+>          You should also examine the system log file
+          (<TT
+CLASS="FILENAME"
+>/var/log/messages</TT
+>) and read the Piranha-related
+          entries. Make sure they do not indicate any problem (see <A
+HREF="x3468.html#S2-FOS-ERROR-MESSAGES"
+>the section called <I
+>Error Messages</I
+></A
+> for a discussion of possible
+          error messages).  If a problem <I
+CLASS="EMPHASIS"
+>is</I
+> logged, make
+          sure you resolve it before proceeding.
+        </P
+><P
+>          Repeat this process for the other cluster node.
+        </P
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="AEN3430"
+>Starting FOS For the First Time</A
+></H2
+><P
+>          If you disconnect both cluster nodes from the network, and start
+          Piranha on each, you should end up with each node believing that the
+          other has failed and both nodes should be running with active
+          services.  If you then connect the nodes to the network while they are
+          still running, the two systems will detect each other's heartbeat.
+          Since both nodes are claiming to be active, the node that is defined
+          as the backup node should become inactive by shutting down its IP
+          services and starting the <TT
+CLASS="APPLICATION"
+>nanny</TT
+> daemon(s).
+        </P
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="AEN3437"
+>Forcing a Node Failover</A
+></H2
+><P
+>          The easiest way to test failover is to unplug the active node from the
+          network. The inactive node should detect the loss of a heartbeat
+          message and become active. If you then shut down Piranha on the
+          unplugged system, reconnect it to the network, and restart Piranha,
+          the reconnected system should detect that FOS is
+          <I
+CLASS="EMPHASIS"
+>already</I
+> active on the other node and no failover
+          should occur to interrupt the running service.
+        </P
+><P
+>          If you reconnect the disconnected node with Piranha already running,
+          then Piranha will detect that two active systems are running; The one
+          defined by the <B
+CLASS="COMMAND"
+>backup</B
+> entry of the configuration
+          file should become inactive (even if that results in another
+          failover).
+        </P
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="AEN3453"
+>Forcing a Service Failover</A
+></H2
+><P
+>          The easiest way to cause a failover due to the loss of a single
+          service is to stop the service by manually executing the command
+          defined by that service's <B
+CLASS="COMMAND"
+>stop</B
+> entry in the Piranha
+          configuration file. The command should be issued on the active
+          system. This will stop the service, which should cause the
+          <TT
+CLASS="APPLICATION"
+>nanny</TT
+> daemon on the inactive node to log a
+          service failure and trigger a failover.
+        </P
+></DIV
+></DIV
+><H3
+CLASS="FOOTNOTES"
+>Notes</H3
+><TABLE
+BORDER="0"
+CLASS="FOOTNOTES"
+WIDTH="100%"
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+WIDTH="5%"
+><A
+NAME="FTN.AEN3368"
+HREF="x3296.html#AEN3368"
+>[1]</A
+></TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+WIDTH="95%"
+><P
+>              Of course, this does not mean that the service <I
+CLASS="EMPHASIS"
+>we
+                expected</I
+> is using the port.  We'll get to that in a
+                moment.
+            </P
+></TD
+></TR
+></TABLE
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="x2670.html"
+>Prev</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="index.html"
+>Home</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="x3468.html"
+>Next</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>Setting up an FOS Cluster</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="ch-fos.html"
+>Up</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>Trouble-shooting FOS</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>

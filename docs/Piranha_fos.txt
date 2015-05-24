@@ -1,0 +1,61 @@
+Piranha - Failover Services
+Abstract
+Piranha version 0.4.x introduces a feature called "failover services" (fos). With fos, a person can set up a 2 node Linux cluster, consisting of a primary node and a backup node. No external systems or devices are needed. The nodes monitor each other and if any of the configured IP services (ftp, http, etc.) fail on the primary node, the services are switched over and provided by the backup node.
+
+Overview
+Fos is a component of Piranha, which itself is part of Red Hat's Clustering Services for Linux and is included in Red Hat's Linux distribution. The binary software is located in the main piranha rpm file, the configuration GUI is in the piranha-gui rpm file, the documentation is in the piranha-doc rpm file, and the source code is in the piranha srpm file.
+Features
+* Can monitor any IP service that supports a direct socket connection. This includes web (http), ftp, ###
+* User can specify special send/expect script strings for stricter testing of a monitored service
+* Fos automatically starts and stops the IP service as part of failover.
+* User can specify the start and stop commands for each monitored service.
+* The clustered systems can also be used for other purposes besides the fos services being monitored.
+* Multiple clusters are possible.
+
+Current Limitations
+* Can only monitor services supporting direct socket connections. Services such as dns, bootp/dhcp are not yet supported.
+* Send / expect strings are limited to printable text characters. Binary data is not allowed.
+* Fos must start and stop the monitored services as part of the failover process. The services cannot already be running on the backup node. This reduces the usefulness of the backup node while in standby mode, and forces it to behave more like a "warm" standby instead of a "hot" standby due to the delay of starting the monitored services.
+* Only 2 node clusters supported.
+* Because several IP services are handled by inetd rather than individual daemons, there are situations where a non-fos configured service will be affected by fos. For example; if you choose to monitor ftp and ftp is started and stopped by inetd, then when fos shuts down inetd, other services inetd provides (such as rsh) will also be down.
+
+Components
+Pulse
+Fos (--monitor)
+Nanny (for service aaa.aaa.aaa.aaa:bbbbb)
+Nanny (for service xxx.xxx.xxx.xxx:zzzzz)
+
+Pulse
+Fos (--active)
+(service aaa.aaa.aaa.aaa:bbbbb)
+(service xxx.xxx.xxx.xxx:zzzzz)
+
+Notes
+Monitors REAL ip addresses to prevent reliability problems caused by vip being defined on a non-live system.
+
+
+
+Installation
+Configuration
+Send / expect strings
+(include examples for all ip services)
+Start command
+Stop command
+
+Testing
+telnet
+Common problems
+Mismatched config files
+Ping-pong
+Using the web GUI and vip
+
+Additional Information
+Multiple Clusters
+Firewall failover
+Further reading
+Fos, pulse, and lvs.cf Man pages
+
+Future features
+Hot standby (live services both nodes)
+Multiple nodes (1 backup for several actives)
+Additional Services (dhcp, dns)

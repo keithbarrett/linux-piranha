@@ -1,0 +1,3407 @@
+<HTML
+><HEAD
+><TITLE
+>Wayne Sherrill LVS Cluster Configuration HOWTO</TITLE
+><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.40"></HEAD
+><BODY
+BGCOLOR="#FFFFFF"
+TEXT="#000000"
+LINK="#0000FF"
+VLINK="#840084"
+ALINK="#0000FF"
+><DIV
+CLASS="ARTICLE"
+><DIV
+CLASS="TITLEPAGE"
+><H1
+CLASS="TITLE"
+><A
+NAME="AEN2"
+>LVS Cluster Configuration HOWTO</A
+></H1
+><H3
+CLASS="AUTHOR"
+>Wayne Sherrill
+</H3
+><DIV
+CLASS="AFFILIATION"
+><DIV
+CLASS="ADDRESS"
+><P
+CLASS="ADDRESS"
+> </P
+></DIV
+></DIV
+><DIV
+><DIV
+CLASS="ABSTRACT"
+><P
+></P
+><P
+>This document explains how to set up and administer a Linux Virtual Server
+(LVS) cluster that provides highly available Web and FTP services.</P
+><P
+>[Note: This document was originally released in early 2000 and
+applied to Red Hat Linux 6.2.2 (2.2 kernel). Although false
+information has been removed, this is an outdated document
+and does not describe later functionality. For
+example, it does not contain any information about FOS
+-- only LVS. It is provided
+here as a helpful tool. Current information can be found in the
+html pirnaha guide book and the man pages. Users of linux kernel 2.4
+will likely need to substitute references to the
+ipchains program with netfilter.]
+</P
+></DIV
+></DIV
+><HR></DIV
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="AEN12"
+>1. Introduction</A
+></H1
+><P
+>A Linux Virtual Server (LVS) cluster is a collection of servers that have been
+specially configured to provide highly available Web and FTP services. The 
+diagram below illustrates how an LVS cluster works. Service requests arriving
+at an LVS cluster are addressed to a <I
+CLASS="FIRSTTERM"
+>virtual server</I
+>: a
+publicly advertised, fully-qualified domain name that is associated with a
+floating IP address, and which can be migrated to a different host.</P
+><DIV
+CLASS="FIGURE"
+><P
+><B
+>Figure 1. LVS Cluster Interactions</B
+></P
+><PRE
+CLASS="SCREEN"
+>  
+                             _/\__/\_ 
+                            |        | 
+                           / Internet \ 
+                           \_  _  _  _/ 
+                             \/ \/ \/
+                                 |
+                                 |
+                       Virtual Server IP/FQDN
+             |------------------------------------------|
+             |eth0                                      |eth0
+       ------|-----                              -------|-----
+       | Primary  |                              |   Backup  |
+       |  Node    |                              |    Node   |    LVS
+       |          |                              |           |  routers
+       ------|-----                              -------|-----
+             |eth1                                      |eth1
+             |-------|------------|-----------------|---|
+                     |            |                 | 
+                     |            |                 |
+                     |            |                 |
+                |----|----|  |----|----|       |----|----|
+                | Web/FTP |  | Web/FTP |       | Web/FTP |        real
+                |  Node#1 |  |  Node#2 |  ...  |  Node#n |       servers
+                |_________|  |_________|       |_________|&#13;</PRE
+></DIV
+><P
+>An LVS cluster consists of one or two router nodes (top of figure) and a
+variable number of Web/FTP servers (bottom). We will refer to the LVS router
+nodes as <I
+CLASS="FIRSTTERM"
+>LVS routers</I
+>, and to the pool of Web/FTP servers
+as <I
+CLASS="FIRSTTERM"
+>real servers</I
+>. The real servers are connected via a
+private network. The LVS routers are connected to this private network and also
+to the public network. The adapters connecting the LVS routers to the
+public and private networks (eth0 and eth1 in the figure) may be any device but
+must be the same on each router. </P
+><P
+>Only one LVS router is active at a time. The role of the
+<I
+CLASS="FIRSTTERM"
+>active router</I
+> is to redirect service requests from
+the virtual server address to the real servers. The redirection is based on
+one of the four supported load-balancing algorithms (described in <A
+HREF="#LOAD-BALANCING"
+>Table 1</A
+>). The active router dynamically monitors the
+health of the real servers, and the workload on each, via one of three
+supported methods (described in <A
+HREF="#NODE-PREREQS"
+>Table 2</A
+>). If a real server
+becomes disabled, the active router stops sending jobs to the server until it
+returns to normal operation. </P
+><P
+>Periodically, the LVS routers exchange "I'm alive" heartbeat messages over
+their public connection. Should the backup node fail to receive a heartbeat
+message within an expected interval, it initiates
+<I
+CLASS="FIRSTTERM"
+>failover</I
+> in order to assume the role of the active
+router. During failover, the backup router takes over the failed router's
+floating IP addresses (as indicated in the cluster configuration file), and uses
+the technique known as <I
+CLASS="FIRSTTERM"
+>ARP spoofing</I
+>: starts announcing
+itself as the destination for IP packets addressed to the failed node. When the
+failed node returns to service, it assumes the <I
+CLASS="FIRSTTERM"
+>hot backup</I
+>
+role.    </P
+><P
+>Currently, the LVS cluster supports one routing method, Network Address
+Translation (NAT). (In the future, tunneling and direct routing will be
+added.) The diagram below illustrates how a NAT virtual server works.</P
+><DIV
+CLASS="FIGURE"
+><P
+><B
+>Figure 2. An LVS Cluster Implemented with NAT Routing</B
+></P
+><PRE
+CLASS="SCREEN"
+>&#13;
+                             _/\__/\_ 
+                            |        | 
+                           / Internet \ 
+                           \_  _  _  _/ 
+                             \/ \/ \/
+                                 |
+                                 |
+             |------------------------------------------| public
+                                 |                        network
+                            eth0 | virtual server IP address
+                       --------------------         
+                       |   active router  |
+                       |                  |
+                       --------------------
+                            eth1 | NAT router IP address
+                                 |
+             |-------|-------------------------|--------| private
+                     |                         |          network
+                     |                         |
+                     |                         |
+                |----|----------|  |-----------|---|
+                | real server#1 |  | real server#2 |
+                |               |  |               |  ...
+                |_______________|  |_______________|
+&#13;</PRE
+></DIV
+><P
+>Client requests for service arrive at a virtual server IP address. This is a
+publicly-advertised address that an administrator at the site will have
+associated with a fully-qualified domain name (for example, lvs.ajax.com). The
+illustration shows only one virtual server address, but there may be many. A
+unique virtual server address is a triplet comprising a protocol (TCP or UDP),
+IP address, and port number. </P
+><P
+>The IP components of virtual server addresses are floating addresses. They may
+be aliased to the device (for example, eth0:1) that connects the LVS routers
+to the public network, or each could be associated with a separate device.
+The NAT router IP address, also a floating IP address, is the default route used
+by each real server on the private network to communicate with the active router.
+As with virtual server addresses, the NAT router IP address may be aliased to
+the device (for example, eth1:1) connecting the virtual server to the network of
+real servers, or it could be associated with a separate device. </P
+><P
+>Virtual server and NAT addresses are enabled only on the active router. Thus,
+should the active router fail, the backup router enables the virtual server and
+NAT addresses during take-over of the floating IP addresses. In the topology
+shown in Figure 2, virtual server addresses are enabled on device eth0 and the
+NAT router address on eth1. </P
+><P
+>The <I
+CLASS="FIRSTTERM"
+>IPVS table</I
+> in the kernel maps requests
+from the virtual server address to a real server on the private network. For
+example, a TCP request addressed to port 80 on virtual server 1.2.3.1
+might be routed to port 80 on real server 192.168.1.2. The actual mapping in the
+IPVS table of jobs to real servers is based on which load-balancing
+algorithm is in use. <A
+HREF="#LOAD-BALANCING"
+>Table 1</A
+> describes the supported
+load-balancing methods. </P
+><DIV
+CLASS="TABLE"
+><A
+NAME="LOAD-BALANCING"
+></A
+><P
+><B
+>Table 1. Load-balancing Methods</B
+></P
+><TABLE
+BORDER="1"
+CLASS="CALSTABLE"
+><TR
+><TH
+ALIGN="LEFT"
+VALIGN="TOP"
+>Name</TH
+><TH
+ALIGN="LEFT"
+VALIGN="TOP"
+>Description</TH
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Round robin</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Distribute jobs equally among the real servers.</TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Least-connections</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Distribute more jobs to real servers with fewer active
+            connections. (The IPVS table stores active connections.)</TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Weighted round robin</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Distribute more jobs to servers with greater
+            capacity. Capacity is indicated by the user-assigned weight, which
+            is adjusted upward or downward by dynamic load information.</TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Weighted least-connections</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Distribute more jobs to servers with fewer active connections
+            relative to their capacity. Capacity is indicated by the user-assigned
+            weight, which is adjusted upward or downward by dynamic load
+            information. </TD
+></TR
+></TABLE
+></DIV
+><P
+>As a real server processes a request, it returns packets to the
+active router, where the address of the real server in the packets is replaced
+by the virtual server address. In this manner, the private network of real
+servers is masqueraded from requesting clients. </P
+></DIV
+><DIV
+CLASS="SECT1"
+><HR><H1
+CLASS="SECT1"
+><A
+NAME="AEN61"
+>2. Components of an LVS Cluster</A
+></H1
+><P
+>The components of an LVS cluster are described below.</P
+><DIV
+CLASS="SECT2"
+><HR><H2
+CLASS="SECT2"
+><A
+NAME="AEN64"
+>2.1. pulse</A
+></H2
+><P
+>This is the controlling process that starts the other daemons as needed. It is
+started on the LVS routers by the <TT
+CLASS="FILENAME"
+>/etc/rc.d/init.d/pulse</TT
+>
+script, normally at boot time . Through <B
+CLASS="COMMAND"
+>pulse</B
+>, which
+implements a simple heartbeat, the inactive LVS router determines the health of
+the active router and whether to initiate failover.   </P
+></DIV
+><DIV
+CLASS="SECT2"
+><HR><H2
+CLASS="SECT2"
+><A
+NAME="AEN69"
+>2.2. lvs</A
+></H2
+><P
+>The <B
+CLASS="COMMAND"
+>lvs</B
+> daemon runs on the LVS routers. It reads the
+configuration file and calls <B
+CLASS="COMMAND"
+>ipvsadm</B
+> to build and maintain
+the IPVS routing table. </P
+></DIV
+><DIV
+CLASS="SECT2"
+><HR><H2
+CLASS="SECT2"
+><A
+NAME="AEN74"
+>2.3. nanny</A
+></H2
+><P
+>The <B
+CLASS="COMMAND"
+>nanny</B
+> monitoring daemon runs on the active LVS
+router. Through this daemon, the active router determines the health of each
+real server and gets its workload. A separate process runs for each real server
+used by each virtual server. </P
+></DIV
+><DIV
+CLASS="SECT2"
+><HR><H2
+CLASS="SECT2"
+><A
+NAME="AEN78"
+>2.4. /lvs.cf</A
+></H2
+><P
+>This is the LVS cluster configuration file. Directly or indirectly, all daemons
+get their configuration information from this file.</P
+></DIV
+><DIV
+CLASS="SECT2"
+><HR><H2
+CLASS="SECT2"
+><A
+NAME="AEN81"
+>2.5. piranha GUI (web based)</A
+></H2
+><P
+>The GUI tool for monitoring, configuring, and administering an LVS cluster.
+Normally this is the tool you will use to maintain
+<TT
+CLASS="FILENAME"
+>lvs.cf</TT
+>, restart the running daemons, and monitor 
+an LVS cluster.  </P
+></DIV
+
+><DIV
+CLASS="SECT2"
+><HR><H2
+CLASS="SECT2"
+><A
+NAME="AEN85"
+>2.6. ipvsadm</A
+></H2
+><P
+>This tool updates the IPVS routing table in the kernel. The
+<B
+CLASS="COMMAND"
+>lvs</B
+> daemon sets up and administers an LVS cluster by calling
+<B
+CLASS="COMMAND"
+>ipvsadm</B
+> to add, change or delete entries in the IPVS routing
+table.</P
+></DIV
+
+><DIV
+CLASS="SECT2"
+><HR><H2
+CLASS="SECT2"
+>2.7. send_arp</A
+></H2
+><P
+>This tool updates arp caches by broadcasting an IP/MAC address
+relationship every time an IP address is relocated to a different
+network interface.</P
+></DIV
+
+></DIV
+><DIV
+CLASS="SECT1"
+><HR><H1
+CLASS="SECT1"
+><A
+NAME="AEN90"
+>3. Background of the LVS Cluster</A
+></H1
+><P
+>The Red Hat LVS cluster is based either directly on contributions from the
+Linux community, or on components that were inspired or enriched by Linux
+community projects. </P
+><P
+>The primary source of the LVS cluster is Wensong Zhang's Linux Virtual Server
+(LVS) kernel routing algorithm (see
+<A
+HREF="http://www.linuxvirtualserver.org"
+TARGET="_top"
+>http://www.linuxvirtualserver.org</A
+>). The
+capabilities of the LVS project that the Red Hat LVS cluster currently supports
+are:   </P
+><P
+></P
+><UL
+><LI
+STYLE="list-style-type: disc"
+><P
+>Building virtual servers: floating IP addresses where requests for service
+arrive from the public internet.
+  </P
+></LI
+><LI
+STYLE="list-style-type: disc"
+><P
+>Routing service requests from virtual servers to a pool of real servers.  
+  </P
+></LI
+><LI
+STYLE="list-style-type: disc"
+><P
+>Load-balancing (see <A
+HREF="#LOAD-BALANCING"
+>Table 1</A
+>).
+  </P
+></LI
+><LI
+STYLE="list-style-type: disc"
+><P
+>Packet-forwarding Network Address Translation (NAT). 
+  </P
+></LI
+></UL
+><P
+>The LVS innovations supported by the Red Hat LVS cluster are based on a number
+of technologies including Network Address Translation (NAT), IP Masquerading,
+and Port Forwarding. For a good general discussion and index of the relevant
+HOWTOs on these and related topics, see
+<A
+HREF="http://www.linas.org/linux/load.html"
+TARGET="_top"
+>http://www.linas.org/linux/load.html</A
+>. </P
+></DIV
+><DIV
+CLASS="SECT1"
+><HR><H1
+CLASS="SECT1"
+><A
+NAME="AEN107"
+>4. Hardware/Network Requirements</A
+></H1
+><P
+>An LVS cluster consists of one or two LVS routers and a collection of real
+servers providing Web and FTP services. The connection and hardware
+requirements are described below. </P
+><DIV
+CLASS="SECT2"
+><HR><H2
+CLASS="SECT2"
+><A
+NAME="AEN110"
+>4.1. LVS Routers</A
+></H2
+><P
+>A Linux server that will be the primary LVS router is required. This machine needs
+two network adapters, one connecting it to the public network and the other to a
+private network of real servers. </P
+><P
+>If you want failover capability, a second Linux server that will be the backup LVS
+router is required. This machine also needs two network adapters connecting it
+to the public network and to the private network of real servers. The adapter
+devices must match on the two LVS routers. Thus, if devices eth0 and eth1 on the
+primary LVS router connect it to public and private network, respectively, then
+these same devices on the backup LVS router must connect it to the public and
+private network. Note that the backup LVS router is a purely <I
+CLASS="FIRSTTERM"
+>hot
+standby</I
+> machine. </P
+></DIV
+><DIV
+CLASS="SECT2"
+><HR><H2
+CLASS="SECT2"
+><A
+NAME="AEN115"
+>4.2. Real Servers</A
+></H2
+><P
+>The private network to which the LVS routers are connected includes a variable
+number of Web/FTP server hosts. Jobs addressed to virtual servers are redirected
+to these real servers, which may be any kind of computing platform running any
+operating system or Web server. </P
+><P
+>During configuration, you assign a <I
+CLASS="FIRSTTERM"
+>weight</I
+> to each real
+server. This is an integer reflecting each server's processing capacity
+(based on memory, processor speed, number of processors, etc.) relative to that
+of the others. It is the ratio (2/1, 20/10, 200/100) that is significant. For
+example, a weight of 2000 assigned to a server indicates that it has twice the
+computing power of a server assigned a weight of 1000. The assigned weight,
+which may be dynamically adjusted based on load information, is used by two
+available job scheduling algorithms (described in <A
+HREF="#LOAD-BALANCING"
+>Table 1</A
+>). You should be prepared to assign accurate weights.   </P
+></DIV
+></DIV
+><DIV
+CLASS="SECT1"
+><HR><H1
+CLASS="SECT1"
+><A
+NAME="AEN121"
+>5. LVS Router Prerequisites</A
+></H1
+><P
+>The LVS routers require packet forwarding,
+packet defragmenting, and IP masquerading must be enabled. </P
+><P
+>To enable packet forwarding and defragmenting, make sure the
+following two lines are present in <TT
+CLASS="FILENAME"
+>/etc/sysctl.conf</TT
+>:
+<P
+CLASS="LITERALLAYOUT"
+>&nbsp;&nbsp;&nbsp;&nbsp;net.ipv4.ip_forward = 1<br>
+&nbsp;&nbsp;&nbsp;&nbsp;net.ipv4.ip_always_defrag = 1</P
+></P
+><P
+>These lines cause <TT
+CLASS="FILENAME"
+>/etc/rc.d/rc.sysinit</TT
+> to execute these two
+commands whenever the routers boot:
+<P
+CLASS="LITERALLAYOUT"
+>&nbsp;&nbsp;&nbsp;&nbsp;echo&nbsp;1&nbsp;&#62;&nbsp;/proc/sys/net/ipv4/ip_forward<br>
+&nbsp;&nbsp;&nbsp;&nbsp;echo&nbsp;1&nbsp;&#62;&nbsp;/proc/sys/net/ipv4/ip_always_defrag</P
+></P
+><P
+>To enable IP masquerading, issue this command:
+<P
+CLASS="LITERALLAYOUT"
+>&nbsp;&nbsp;&nbsp;&nbsp;ipchains&nbsp;-A&nbsp;forward&nbsp;-j&nbsp;MASQ&nbsp;-s&nbsp;n.n.n.n/type&nbsp;-d&nbsp;0.0.0.0/0</P
+></P
+><P
+>where:</P
+><P
+></P
+><UL
+><LI
+STYLE="list-style-type: disc"
+><P
+>  
+n.n.n.n is the address of the private subnet to which the real servers are
+connected.
+  </P
+></LI
+><LI
+STYLE="list-style-type: disc"
+><P
+>type is 8, 16, 24, or 32 indicating the address type and mask:
+<PRE
+CLASS="SCREEN"
+>     netmask         | type | Subnet
+     ~~~~~~~~~~~~~~~~|~~~~~~|~~~~~~~~~~~~~~~
+     255.0.0.0       | 8    | Class A
+     255.255.0.0     | 16   | Class B
+     255.255.255.0   | 24   | Class C
+     255.255.255.255 | 32   | Point-to-point</PRE
+></P
+></LI
+></UL
+><P
+>You will probably want to put the <B
+CLASS="COMMAND"
+>ipchains</B
+> command in an init
+script (e.g., <TT
+CLASS="FILENAME"
+>/etc/rc.d/rc.local</TT
+>), so that masquerading is
+configured on the LVS routers at system startup. </P
+><P
+><B
+CLASS="COMMAND"
+>ipchains</B
+> is the tool used to create and manage firewalling
+rules set in the kernel's TCP stack. Masquerading is a small subset of these
+rules that allows machines making use of private IP networks to communicate with
+the outside world. Using <B
+CLASS="COMMAND"
+>ipchains</B
+> can have an impact on system 
+security. If you have security concerns, read the <B
+CLASS="COMMAND"
+>ipchains</B
+>
+HOWTO (<A
+HREF="http://www.linuxdoc.org/HOWTO/IPCHAINS-HOWTO.html"
+TARGET="_top"
+>http://www.linuxdoc.org/HOWTO/IPCHAINS-HOWTO.html</A
+>).</P
+></DIV
+><DIV
+CLASS="SECT1"
+><HR><H1
+CLASS="SECT1"
+><A
+NAME="AEN147"
+>6. Cluster Node Interconnection Prerequisites</A
+></H1
+><P
+>During configuration, you select the tool family (<B
+CLASS="COMMAND"
+>rsh</B
+> or
+<B
+CLASS="COMMAND"
+>ssh</B
+>) that will be used to synchronize the
+<TT
+CLASS="FILENAME"
+>lvs.cf</TT
+> configuration files on the LVS routers. The
+selected tool must be enabled on the LVS routers, such that
+<TT
+CLASS="LITERAL"
+>root</TT
+> on each router can log in to the other router without
+administrator intervention.  </P
+><P
+>Also during configuration, you select the tool (<B
+CLASS="COMMAND"
+>uptime</B
+>,
+<B
+CLASS="COMMAND"
+>ruptime</B
+>, <B
+CLASS="COMMAND"
+>rup</B
+>, or <b class=COMMAND"> none</b>
+) that the active router
+will use to monitor the workload on the real servers. Enable the selected
+tool on the real servers. If this cannot be done (for example, one of your real
+servers is a Windows/NT Web server), the cluster will still provide highly
+available services. However, the Weighted round robin and Weighted
+least-connections algorithms (described in <A
+HREF="#LOAD-BALANCING"
+>Table 1</A
+> will
+be affected. Namely, since load information will not be available, the
+user-assigned weights will be applied statically rather than dynamically adjusted
+based on server workload.   </P
+><P
+><A
+HREF="#NODE-PREREQS"
+>Table 2</A
+> describes in general terms what you do to enable
+these tools on the source and destination hosts. For more detailed information,
+see the man pages. Note that, with <B
+CLASS="COMMAND"
+>rsh</B
+> and
+<B
+CLASS="COMMAND"
+>ssh</B
+>, <TT
+CLASS="LITERAL"
+>root</TT
+> must be able to log in over the
+network. To enable remote root login to a Red Hat Linux system, remove the
+following line from the file <TT
+CLASS="FILENAME"
+>/etc/pam.d/login</TT
+>:
+<P
+CLASS="LITERALLAYOUT"
+><br>
+auth&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;required&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;/lib/security/pam_security.so<br>&#13;</P
+>  
+This is a security hole, albeit small. Make sure you have the LVS nodes properly
+firewalled so that logins are allowed only from trusted sources.</P
+><DIV
+CLASS="TABLE"
+><A
+NAME="NODE-PREREQS"
+></A
+><P
+><B
+>Table 2. Enabling Synchronization and Monitoring Tools</B
+></P
+><TABLE
+BORDER="1"
+CLASS="CALSTABLE"
+><TR
+><TH
+ALIGN="LEFT"
+VALIGN="TOP"
+>Tool</TH
+><TH
+ALIGN="LEFT"
+VALIGN="TOP"
+>Do This</TH
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>rsh</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Create a <TT
+CLASS="FILENAME"
+>.rhosts</TT
+> file with permission 600
+          in the root on the destination host naming the source host and user
+          (for example, foo.host1.com root).</TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>ssh</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Obtain/install the tool, which for legal reasons is not released
+          with international Linux distributions. On source and destination
+          hosts, disable remote login via all other methods, set up RSA-based
+          authentication using <TT
+CLASS="FILENAME"
+>.ssh/authorized_keys</TT
+>, and start
+          <B
+CLASS="COMMAND"
+>sshd</B
+>.  </TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>uptime</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>On each real server, enable either <B
+CLASS="COMMAND"
+>rsh</B
+> or
+            <B
+CLASS="COMMAND"
+>ssh</B
+> as described above.</TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>ruptime</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Set up each LVS router and real server to start
+          <B
+CLASS="COMMAND"
+>rwhod</B
+> whenever it boots. </TD
+></TR
+><TR
+>
+
+<TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>rup</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Set up each real server to start <B
+CLASS="COMMAND"
+>rpc.rstatd</B
+>
+          whenever it boots. </TD>
+
+</tr><tr>
+
+<TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>none</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Do not perform any load tests. Assume load is always acceptable.</td>
+
+</TR
+></TABLE
+></DIV
+></DIV
+><DIV
+CLASS="SECT1"
+><HR><H1
+CLASS="SECT1"
+><A
+NAME="INSTALL"
+>7. Installing the Software</A
+></H1
+><P
+>The LVS cluster software is released in three RPM packages:
+<P
+CLASS="LITERALLAYOUT"
+><br>
+piranha&nbsp;(programs)<br>
+piranha-gui&nbsp;(graphical&nbsp;configuration&nbsp;tool)<br>
+piranha-docs&nbsp;(documentation)<br>&#13;</P
+>
+You can install these packages from the 6.1 CD-ROM with this command:</P
+><PRE
+CLASS="SCREEN"
+>   #rpm -Uvh /mnt/cdrom/RedHat/RPMS/piranha*.rpm</PRE
+><P
+>To obtain possible updates of these (or other) packages for your hardware
+platform, visit
+ <A
+HREF="http://www.redhat.com/corp/support/errata/rh61-errata-updates.html"
+TARGET="_top"
+>http://www.redhat.com/corp/support/errata/rh61-errata-updates.html</A
+>
+on the Red Hat website.</P
+></DIV
+><DIV
+CLASS="SECT1"
+><HR><H1
+CLASS="SECT1"
+><A
+NAME="AEN203"
+>8. Configuring an LVS Cluster</A
+></H1
+><P
+>You set up and maintain an LVS cluster from the LVS routers, by editing the
+configuration file and starting or restarting the <B
+CLASS="COMMAND"
+>pulse</B
+>
+daemon. Specifically, the steps are:
+<P
+></P
+><OL
+TYPE="1"
+><LI
+><P
+>          On the primary router, edit the configuration file
+          <TT
+CLASS="FILENAME"
+>lvs.cf</TT
+>.
+         </P
+></LI
+><LI
+><P
+>          Copy the edited configuration file to the backup router.
+          </P
+></LI
+><LI
+><P
+>          Start (or restart) the <B
+CLASS="COMMAND"
+>pulse</B
+>
+          daemon first on the primary router, then on the backup router.
+          </P
+></LI
+></OL
+></P
+><P
+>You can perform these steps from the shell, by editing the configuration file
+with the editor of your choice. The shell commands for starting, restarting, and
+stopping the <B
+CLASS="COMMAND"
+>pulse</B
+> daemon are:
+<P
+CLASS="LITERALLAYOUT"
+>&nbsp;&nbsp;&nbsp;&nbsp;/etc/rc.d/init.d/pulse&nbsp;start<br>
+&nbsp;&nbsp;&nbsp;&nbsp;/etc/rc.d/init.d/pulse&nbsp;restart<br>
+&nbsp;&nbsp;&nbsp;&nbsp;/etc/rc.d/init.d/pulse&nbsp;stop</P
+>
+The <B
+CLASS="COMMAND"
+>pulse</B
+> daemon starts or restarts the other LVS cluster
+daemons as needed, which obtain their configuration information, directly or
+indirectly, from the current configuration file. </P
+><P
+>If you stop <B
+CLASS="COMMAND"
+>pulse</B
+> (in order to shut down the cluster), stop
+it on the backup router first. This will prevent the backup router from possibly
+taking over the active role.</P
+><P
+>Alternatively, you can use <B
+CLASS="COMMAND"
+>piranha</B
+> to set up, monitor, and
+administer your LVS cluster. The entry fields on its windows set or change lines
+in <TT
+CLASS="FILENAME"
+>lvs.cf</TT
+>, and there are buttons to start, stop, and
+restart the cluster. Use of <B
+CLASS="COMMAND"
+>piranha</B
+> requires that the X
+Window System be configured on the LVS routers. An advantage of using
+<B
+CLASS="COMMAND"
+>piranha</B
+> is that it synchronizes the configuration file on the
+primary and backup routers,  and you perform all administrative tasks from 
+the active router.  </P
+><P
+>The next section describes the LVS cluster configuration file. Read this section
+if you want to edit this file manually. If you chose to use
+<B
+CLASS="COMMAND"
+>piranha</B
+>, read <A
+HREF="#USE-PIRANHA"
+>Section 8.2</A
+>.</P
+><DIV
+CLASS="SECT2"
+><HR><H2
+CLASS="SECT2"
+><A
+NAME="EDIT-CF"
+>8.1. Editing the Configuration File</A
+></H2
+><P
+>The <TT
+CLASS="FILENAME"
+>lvs.cf</TT
+> file has three sections. The global section,
+described in <A
+HREF="#GLOBAL-CF"
+>Table 3</A
+>, sets up the LVS routers and specifies
+networking and heartbeat parameters. There is one set of parameters for the
+cluster. The per-virtual-server section, described in <A
+HREF="#PER-VS-CF"
+>Table 4</A
+>,
+defines virtual server addresses, sets up the associations between virtual
+servers and real servers, and specifies job-scheduling parameters. There is a
+separate set of parameters for each defined virtual server. The per-real-server
+section, described in <A
+HREF="#PER-RS-CF"
+>Table 5</A
+>, defines the real servers routed
+to from each virtual server. There is one set of these parameters for each
+virtual server.  </P
+><DIV
+CLASS="TABLE"
+><A
+NAME="GLOBAL-CF"
+></A
+><P
+><B
+>Table 3. Setting Global Parameters</B
+></P
+><TABLE
+BORDER="1"
+CLASS="CALSTABLE"
+><TR
+><TH
+ALIGN="LEFT"
+VALIGN="TOP"
+>Parameter</TH
+><TH
+ALIGN="LEFT"
+VALIGN="TOP"
+>Description</TH
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>primary =</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Enter the IP address of the adapter connecting the primary
+              LVS router to the public network.</TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>backup =</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Enter the IP address of the adapter connecting the backup
+              backup LVS router to the public network.</TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>heartbeat_port = </TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Enter the port number used for the heartbeat on the primary
+              and backup LVS routers.</TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>keepalive =</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Enter the number of seconds between heartbeats.</TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>deadtime =</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Enter the number of seconds to wait before declaring a
+              non-responding router dead and initiating failover.</TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>rsh_command = [rsh|ssh]</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Enter the command family to use for synchronizing the
+              configuration files on the primary and backup routers. Important:
+              as described in <A
+HREF="#NODE-PREREQS"
+>Table 2</A
+>, you must enable the
+              selected command on the primary and backup routers.</TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>network = [nat|direct|tunnel]</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Currently, only Network Address Translation (nat) is
+              supported. </TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>nat_router = </TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Enter the floating IP address and device of the NAT
+              router. This IP address must be the default route used by each
+              real server to communicate with the active LVS router. The IP
+              address is aliased to the device (for example, eth1:1) connecting
+              the LVS routers to the private network of real servers. The device
+              must be the same (i.e., eth1) on both LVS routers. </TD
+></TR
+></TABLE
+></DIV
+><DIV
+CLASS="TABLE"
+><A
+NAME="PER-VS-CF"
+></A
+><P
+><B
+>Table 4. Setting Per-Virtual-Server Parameters</B
+></P
+><TABLE
+BORDER="1"
+CLASS="CALSTABLE"
+><TR
+><TH
+ALIGN="LEFT"
+VALIGN="TOP"
+>Parameter</TH
+><TH
+ALIGN="LEFT"
+VALIGN="TOP"
+>Description</TH
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>name</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Enter a unique identifier for the virtual server.</TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>address =</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Enter the virtual server's IP address: a floating IP
+              address that has been associated with a fully-qualified domain
+              name. </TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>active = [0|1]</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Enable (1) or disable (0) this address.</TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>load_monitor = [uptime|ruptime|rup|none]</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Select the tool (default uptime) that will be used by the
+              active router to monitor the workload of real servers. Important:
+              as described in <A
+HREF="#NODE-PREREQS"
+>Table 2</A
+>, unless you enable the
+              selected command on the real servers, the scheduling algorithms
+              that use dynamic load information will apply the assigned weight
+              statically rather than adjust the weight from load information. If
+              you select the default (uptime), the tool you specified for
+              "rsh_command" is used to log in to the real servers. This tool
+              must be enabled on the real servers.</TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>timeout =</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Enter the number of seconds (default 10) that must lapse
+              before a real server determined to be dead is removed from the
+              routing table.</TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>reentry =</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Enter the number of seconds (default 180) that a restored
+              real server must remain alive before being re-added to the routing
+              table.</TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>port = [http/80|ftp/21]</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Enter the listening port on this virtual server:  http for
+              80 (the default) or ftp for 21. Or you can enter the numbers.</TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>scheduler = [wlc|lc|wrr|rr]</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Select the scheduling algorithm (default wlc) for
+              distributing jobs from this virtual server to the real
+              servers. The choices are described in <A
+HREF="#LOAD-BALANCING"
+>Table 1</A
+>.  
+             </TD
+></TR
+></TABLE
+></DIV
+><DIV
+CLASS="TABLE"
+><A
+NAME="PER-RS-CF"
+></A
+><P
+><B
+>Table 5. Setting Per-Real-Server Parameters</B
+></P
+><TABLE
+BORDER="1"
+CLASS="CALSTABLE"
+><TR
+><TH
+ALIGN="LEFT"
+VALIGN="TOP"
+>Parameter</TH
+><TH
+ALIGN="LEFT"
+VALIGN="TOP"
+>Description</TH
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>name</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Enter a unique name for the real server.</TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>address = </TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Enter the IP address of the real server on the private
+              network. </TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>active = [0|1]</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Enable (1) or disable (0) the real server.</TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>weight =</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Enter an integer (default is 1) specifying this server's
+              processing capacity relative to that of other real servers. For
+              example, a server assigned 2000 has twice the capacity of a server
+              assigned 1000. The weighted scheduling algorithms adjust this
+              number dynamically based on workload.</TD
+></TR
+></TABLE
+></DIV
+></DIV
+><DIV
+CLASS="SECT2"
+><HR><H2
+CLASS="SECT2"
+><A
+NAME="USE-PIRANHA"
+>8.2. Using the Piranha Configuration Tool</A
+></H2
+><P
+>To start the piranha gui, execute the command "/etc/rc.d/init.d/piranha-gui start".
+Then run a web browser and connect to your server on port 3636.
+<p>You may gt prompted for the password to the piranha account, which was
+set by your system administrator executing the piranha-passwd script.
+<p>
+When you do, its main window opens. The window has four tabs:</P
+><P
+><SPAN
+CLASS="GUILABEL"
+>Controls/Monitoring</SPAN
+> --
+    The initial tab. Used to start/stop/restart the cluster daemons and monitor
+the runtime status. See <A
+HREF="#CONTROL-TAB"
+>Section 8.2.1</A
+>.  </P
+><P
+><SPAN
+CLASS="GUILABEL"
+>Global Settings</SPAN
+> --
+    Use to set the IP address of the primary LVS router and NAT router. See <A
+HREF="#GLOBAL-TAB"
+>Section 8.2.2</A
+>. </P
+><P
+><SPAN
+CLASS="GUILABEL"
+>Redundancy</SPAN
+> --
+    Use to set the address of the backup LVS router and set the heartbeating
+    parameters. See <A
+HREF="#REDUNDANCY-TAB"
+>Section 8.2.3</A
+>.</P
+><P
+><SPAN
+CLASS="GUILABEL"
+>Virtual Servers</SPAN
+> --
+    Use to set service addresses and set up routing between service
+    addresses and real Web/FTP server hosts. See <A
+HREF="#VS-TAB"
+>Section 8.2.4</A
+>.</P
+><P
+>Piranha windows have one or more of these buttons along the bottom:</P
+><P
+><SPAN
+CLASS="GUILABEL"
+>	OK </SPAN
+> --
+ Apply changes and exit from the window.</P
+><P
+><SPAN
+CLASS="GUILABEL"
+>	Apply</SPAN
+> --
+ Apply changes without exiting the window.</P
+><P
+><SPAN
+CLASS="GUILABEL"
+>	Close</SPAN
+> -- 
+ Exit from the window without applying changes.</P
+><DIV
+CLASS="SECT3"
+><HR><H3
+CLASS="SECT3"
+><A
+NAME="CONTROL-TAB"
+>8.2.1. Controls/Monitoring Tab</A
+></H3
+><DIV
+CLASS="INFORMALTABLE"
+><P
+></P
+><TABLE
+BORDER="1"
+CLASS="CALSTABLE"
+><TR
+><TH
+ALIGN="LEFT"
+VALIGN="TOP"
+>Field/Button</TH
+><TH
+ALIGN="LEFT"
+VALIGN="TOP"
+>Description</TH
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Start/Stop</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>When cluster daemons are not running, this button is labeled
+          Start: click it to start the cluster. When the daemons are running,
+          the button is labeled Stop: click it to stop the cluster daemons.</TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Add pulse daemon to this runlevel</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Select to start pulse at system boot at this runlevel.</TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Update information now</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Click to display current information in the kernel routing
+          table. </TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Auto-update</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Select to display kernel table routing information
+          automatically at the specified interval. </TD
+></TR
+></TABLE
+><P
+></P
+></DIV
+></DIV
+><DIV
+CLASS="SECT3"
+><HR><H3
+CLASS="SECT3"
+><A
+NAME="GLOBAL-TAB"
+>8.2.2. Global Settings Tab</A
+></H3
+><DIV
+CLASS="INFORMALTABLE"
+><P
+></P
+><TABLE
+BORDER="1"
+CLASS="CALSTABLE"
+><TR
+><TH
+ALIGN="LEFT"
+VALIGN="TOP"
+>Field/Button</TH
+><TH
+ALIGN="LEFT"
+VALIGN="TOP"
+>Description</TH
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Primary LVS server IP</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Contains the public IP address of the primary LVS router. </TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>NAT Router IP</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Contains the floating IP address associated with the network
+          adapter connecting the virtual server with the network of real
+          servers. This address is the gateway used by the real servers to
+          communicate with the virtual server. If this node fails, this address
+          migrates to the backup LVS node.  </TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>NAT Router Device</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Names the device with which the NAT router IP address is
+          associated. This is done via address aliasing. For example, the NAT
+          router IP may be aliased to physical device eth1 as eth1:1. </TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Sync tool</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Select the tool (rsh or ssh) for synchronizing files on the
+          primary and backup LVS routers. The tool you select must be enabled,
+          such that the LVS routers can log in to one another without needing
+          to enter a password. For general procedures, see 
+          <A
+HREF="#NODE-PREREQS"
+>Table 2</A
+>. </TD
+></TR
+></TABLE
+><P
+></P
+></DIV
+></DIV
+><DIV
+CLASS="SECT3"
+><HR><H3
+CLASS="SECT3"
+><A
+NAME="REDUNDANCY-TAB"
+>8.2.3. Redundancy Tab</A
+></H3
+><DIV
+CLASS="INFORMALTABLE"
+><P
+></P
+><TABLE
+BORDER="1"
+CLASS="CALSTABLE"
+><TR
+><TH
+ALIGN="LEFT"
+VALIGN="TOP"
+>Field/Button</TH
+><TH
+ALIGN="LEFT"
+VALIGN="TOP"
+>Description</TH
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Enable redundant server</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Select to enable failover.</TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Redundant LVS server IP</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Contains the public IP address of the backup LVS node.</TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Heartbeat interval (seconds)</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Contains the number of seconds between heartbeats: the interval
+          at which the backup LVS node checks to see if the primary LVS node is
+          alive. </TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Assume dead after (seconds)</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>If this number of seconds lapses without a response from the
+          primary LVS node, the backup router initiates failover. During failover,
+          the backup router claims all virtual server IPs being processed by the
+          primary LVS router, and broadcasts gratuitous ARPs advertising its MAC
+          address as the destination of packets addressed to the primary
+          router.</TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Heartbeat port</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Enter the port used for the heartbeat on the primary and backup
+          LVS routers.</TD
+></TR
+></TABLE
+><P
+></P
+></DIV
+></DIV
+><DIV
+CLASS="SECT3"
+><HR><H3
+CLASS="SECT3"
+><A
+NAME="VS-TAB"
+>8.2.4. Virtual Servers</A
+></H3
+><P
+>This screen displays a row of information for each currently defined virtual
+server. Click a row to select it. The buttons on the right side of the
+screen apply to the currently selected virtual server. Click Delete to remove
+the selected virtual server.</P
+><DIV
+CLASS="INFORMALTABLE"
+><P
+></P
+><TABLE
+BORDER="1"
+CLASS="CALSTABLE"
+><TR
+><TH
+ALIGN="LEFT"
+VALIGN="TOP"
+>Field/Button</TH
+><TH
+ALIGN="LEFT"
+VALIGN="TOP"
+>Description</TH
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Status</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Displays Active or Down. Click Disable to take down a selected
+          active virtual server; click Activate to enable a selected down
+          virtual server. After changing the status, you must restart the pulse
+          daemon to make the change take affect. To do this, go to the
+          Controls/Monitoring tab, click the Stop button (its name changes to
+          Start), then click Start.  </TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Name</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Contains a unique identifier for the virtual server.</TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Port</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Contains the number of the listen port for incoming requests
+          for service. </TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Protocol</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Currently, only TCP is supported. </TD
+></TR
+></TABLE
+><P
+></P
+></DIV
+><DIV
+CLASS="SECT4"
+><HR><H4
+CLASS="SECT4"
+><A
+NAME="VS-EDIT-TAB"
+>8.2.4.1. Add/Edit a Virtual Server</A
+></H4
+><P
+>Click the Add button to create a new, undefined virtual server. Click the
+Edit button (or double-click the row) to define or modify a virtual
+server. Click the Real Servers tab to view or modify the real servers
+associated with the selected virtual server. </P
+><DIV
+CLASS="INFORMALTABLE"
+><P
+></P
+><TABLE
+BORDER="1"
+CLASS="CALSTABLE"
+><TR
+><TH
+ALIGN="LEFT"
+VALIGN="TOP"
+>Field/Button</TH
+><TH
+ALIGN="LEFT"
+VALIGN="TOP"
+>Description</TH
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Name</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Enter a unique identifier for this virtual server.</TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Application</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Click to select HTTP or FTP.</TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Port</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Enter the number of the listen port for incoming requests
+          for service. </TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Address</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Enter the floating IP address where requests for service
+          arrive. This address will have been associated with the
+          fully-qualified domain name to which requests for service are
+          addressed. </TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Device</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Name the adapter device connecting the LVS routers to the
+          public network, with which the floating IP address is associciated
+          via IP aliasing (For example, eth0:1). If the active router fails, the
+          virtual server address and port are failed-over to this device on the
+          backup router, which becomes the active router. </TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Re-entry Time</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Enter the number of seconds (default is 180) that a failed real
+          server associated with this virtual server must remain alive before
+          it will be re-added to the cluster. </TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Service timeout</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Enter the number of seconds (default is 10) within which a real
+          server must respond to a redirected request. If a host takes longer
+          than this, it is declared dead and removed from the cluster.</TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+> </TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Every two seconds the <B
+CLASS="COMMAND"
+>nanny</B
+> process on the
+          active router sends a heartbeat (essentially a <B
+CLASS="COMMAND"
+>ping</B
+>)
+          to each real server. If this succeeds, then a service connect
+          (essentially a <B
+CLASS="COMMAND"
+>telnet</B
+> conection) is sent
+          out on the specified service port. If <B
+CLASS="COMMAND"
+>nanny</B
+> gets
+          back any response from a real server, it and the service are assumed
+          to be alive. If "Service timeout" seconds lapse without a response,
+          then the real server is presumed to be dead and is dropped from the
+          routing table. But <B
+CLASS="COMMAND"
+>nanny</B
+> continues to monitor the
+          server/service by sending out heartbeats every two seconds. If, after
+          a successful <B
+CLASS="COMMAND"
+>ping</B
+>, a dropped server remains alive
+          for "Re-entry Time" number of seconds, the server is re-added to the
+          kernel routing table.
+         </TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Load monitoring tool</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Select the tool to use (<B
+CLASS="COMMAND"
+>uptime</B
+>,
+          <B
+CLASS="COMMAND"
+>rup</B
+>, <B
+CLASS="COMMAND"
+>ruptime</B
+>, or <b class=COMMAND> none</b>
+) for 
+          determining the workload on the real servers. The general procedures
+          for enabling these tools are described in the table in
+          <A
+HREF="#NODE-PREREQS"
+>Table 2</A
+>.  </TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Scheduling</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Select the algorithm for routing requests from this virtual
+          server to the real servers. The choices are described in <A
+HREF="#LOAD-BALANCING"
+>Table 1</A
+>. 
+          </TD
+></TR
+></TABLE
+><P
+></P
+></DIV
+></DIV
+></DIV
+><DIV
+CLASS="SECT3"
+><HR><H3
+CLASS="SECT3"
+><A
+NAME="RS-TAB"
+>8.2.5. Real Servers</A
+></H3
+><P
+>This screen displays a row of information for each currently defined real
+server. Click a row to select it. The buttons on the right side of the
+screen apply to the currently selected row. Click Delete to remove the
+selected real server.</P
+><DIV
+CLASS="INFORMALTABLE"
+><P
+></P
+><TABLE
+BORDER="1"
+CLASS="CALSTABLE"
+><TR
+><TH
+ALIGN="LEFT"
+VALIGN="TOP"
+>Field/Button</TH
+><TH
+ALIGN="LEFT"
+VALIGN="TOP"
+>Description</TH
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Status</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Displays Active or Down. Click Disable to take down a selected
+          active virtual server; click Activate to enable a selected down
+          virtual server. After changing the status, you must restart the pulse
+          daemon to make the change take affect. To do this, go to the
+          Controls/Monitoring tab, click the Stop button (its name changes to
+          Start), then click Start. </TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Name</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Displays the server's name in the cluster.</TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Address</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Displays the server's IP address. </TD
+></TR
+></TABLE
+><P
+></P
+></DIV
+><DIV
+CLASS="SECT4"
+><HR><H4
+CLASS="SECT4"
+><A
+NAME="RS-EDIT-TAB"
+>8.2.5.1. Add/Edit a Real Server</A
+></H4
+><P
+>Click the Add button to create a new, undefined real server. Click the Edit
+button (or double-click the row) to define or change the selected real server.</P
+><DIV
+CLASS="INFORMALTABLE"
+><P
+></P
+><TABLE
+BORDER="1"
+CLASS="CALSTABLE"
+><TR
+><TH
+ALIGN="LEFT"
+VALIGN="TOP"
+>Field/Button</TH
+><TH
+ALIGN="LEFT"
+VALIGN="TOP"
+>Description</TH
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Name</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Enter a descriptive name. </TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Address</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Enter the IP address of the real server on the private network.
+          </TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Weight</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Assign an integer to indicate this host's processing capacity
+          relative to that of other hosts in the pool. </TD
+></TR
+></TABLE
+><P
+></P
+></DIV
+></DIV
+></DIV
+></DIV
+></DIV
+><DIV
+CLASS="SECT1"
+><HR><H1
+CLASS="SECT1"
+><A
+NAME="EXAMPLE-LAYOUT"
+>9. Example -- Setting Up a Five-node Cluster</A
+></H1
+><P
+>This section describes step by step how to create a
+cluster of two LVS routers and three Web/FTP servers. First, collect
+information and set up the five systems as explained in the next section. Then,
+implement the example either from a shell
+(explained in <A
+HREF="#EXAMPLE-EDIT-CF"
+>Section 9.2</A
+>) or by starting the GUI
+configuration tool (explained in <A
+HREF="#EXAMPLE-PIRANHA"
+>Section 9.3</A
+>). </P
+><P
+><A
+HREF="#NETWORK-TOPOLOGY"
+>Figure 3</A
+> shows the network that will exist
+    after you've set up the LVS routers and real servers. All network addresses
+    shown are for purposes of illustration only. </P
+><DIV
+CLASS="FIGURE"
+><A
+NAME="NETWORK-TOPOLOGY"
+></A
+><P
+><B
+>Figure 3. Layout of the Example Network</B
+></P
+><PRE
+CLASS="SCREEN"
+>|-------|------------------------------------------|---------| Public network
+        |eth0=1.2.3.2                              |eth0=1.2.3.3
+        |eth0:1=1.2.3.1 (vs1)                      |
+  ------|-----                              -------|-----
+  |  active  |                              |   backup  |
+  |  router  |                              |   router  |  
+  |          |                              |           | 
+  ------|-----                              -------|-----
+        |eth1=192.168.1.1                          |eth1=192.168.1.2
+        |eth1:1=192.168.1.254 (NAT router)         |
+|-------|-|------------------|-----------------|---|----------| Private network
+          |eth0=192.168.1.3  |eth0=192.168.1.4 |eth0=192.168.1.5 
+          |                  |                 |
+          |---------|        |---------|       |---------|
+          |   rs1   |        |   rs2   |       |   rs3   |  
+          |_________|        |_________|       |_________|&#13;</PRE
+></DIV
+><DIV
+CLASS="SECT2"
+><HR><H2
+CLASS="SECT2"
+><A
+NAME="EXAMPLE-SETUP"
+>9.1. Preliminary Setup</A
+></H2
+><P
+></P
+><OL
+TYPE="1"
+><LI
+><A
+NAME="VS-ADDR"
+></A
+><P
+>From the webmaster, obtain a virtual server IP address. In our example this
+will be 1.2.3.1. Requests for service at the LVS cluster will be
+addressed to a fully-qualified domain name associated with this address.
+       </P
+></LI
+><LI
+><P
+>Locate 5 servers and designate their roles: 1 primary LVS router, 1 backup LVS
+router, 3 real servers. The LVS routers must be Linux boxes running Red Hat 6.1
+or later. The real servers may be any platform running any operating system and
+Web server.</P
+><P
+>Steps <A
+HREF="#ROUTER-ADDRS"
+>3</A
+>-<A
+HREF="#VERIFY-SOFTWARE"
+>7</A
+> set up the
+LVS routers.</P
+></LI
+><LI
+><A
+NAME="ROUTER-ADDRS"
+></A
+><P
+>On each LVS router, install two ethernet adapter cards, eth0 and eth1.
+Create a public IP interface on eth0 and a private IP interface on eth1. The
+public interface device (eth0) is the heartbeat device. The virtual server address
+is aliased to this device.</P
+><DIV
+CLASS="INFORMALTABLE"
+><P
+></P
+><TABLE
+BORDER="1"
+CLASS="CALSTABLE"
+><TR
+><TH
+ALIGN="LEFT"
+VALIGN="TOP"
+> </TH
+><TH
+ALIGN="LEFT"
+VALIGN="TOP"
+>Primary node</TH
+><TH
+ALIGN="LEFT"
+VALIGN="TOP"
+>Backup node</TH
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>eth0</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>1.2.3.2</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>1.2.3.3</TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>eth1</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>192.168.1.1</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>192.168.1.2</TD
+></TR
+></TABLE
+><P
+></P
+></DIV
+></LI
+><LI
+><A
+NAME="NAT-ADDR"
+></A
+><P
+>Designate an IP address (192.168.1.254) for the router device (eth1) connecting
+the active LVS router to the private network. This floating IP address will be
+aliased to the router device as eth1:1, and will be the gateway to the private
+network and the default route used by each real server to communicate with the
+active router.</P
+></LI
+><LI
+><P
+>On each LVS router:</P
+><P
+></P
+><OL
+TYPE="a"
+><LI
+><A
+NAME="IP-FORWARD"
+></A
+><P
+>Enable packet forwarding. To do this at system boot, make sure the file
+<TT
+CLASS="FILENAME"
+>/etc/sysctl.conf</TT
+> contains the line
+<TT
+CLASS="LITERAL"
+>net.ipv4.ip_forward = 1</TT
+>. To enable packet forwarding without
+rebooting, as root issue this command:
+<P
+CLASS="LITERALLAYOUT"
+><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<B
+CLASS="COMMAND"
+>echo "1" &#62; /proc/sys/net/ipv4/ip_forward</B
+></P
+></P
+></LI
+><LI
+><A
+NAME="IP-DEFRAG"
+></A
+><P
+>Enable packet defragmenting. To do this at system boot, make sure the file
+<TT
+CLASS="FILENAME"
+>/etc/sysctl.conf</TT
+> contains the line
+<TT
+CLASS="LITERAL"
+>net.ipv4.ip_always_defrag = 1</TT
+>. To enable packet defragmenting without
+rebooting, as root issue this command:
+<P
+CLASS="LITERALLAYOUT"
+><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<B
+CLASS="COMMAND"
+>echo "1" &#62; /proc/sys/net/ipv4/ip_always_defrag</B
+></P
+></P
+></LI
+><LI
+><A
+NAME="IP-MASQUERADE"
+></A
+><P
+>Masquerade the private network. Issue this command and put it in
+<TT
+CLASS="FILENAME"
+>/etc/rc.d/rc.local</TT
+>:
+<P
+CLASS="LITERALLAYOUT"
+><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<B
+CLASS="COMMAND"
+>ipchains -A forward -j MASQ -s 192.168.1.0/24 -d 0.0.0.0/0</B
+><br>&#13;</P
+></P
+></LI
+></OL
+></LI
+><LI
+><A
+NAME="SYNC-TOOL"
+></A
+><P
+>Decide whether to use the <B
+CLASS="COMMAND"
+>rsh</B
+> or <B
+CLASS="COMMAND"
+>ssh</B
+>
+families for synchronizing LVS cluster files.
+Verify that your choice is installed such that the LVS routers can log in
+to one another as root without administrator intervention (see <A
+HREF="#NODE-PREREQS"
+>Table 2</A
+>). In this example, we will choose
+<B
+CLASS="COMMAND"
+>rsh</B
+>. </P
+></LI
+><LI
+><A
+NAME="VERIFY-SOFTWARE"
+></A
+><P
+>On each LVS router, verify that the LVS cluster software is installed (see <A
+HREF="#INSTALL"
+>Section 7</A
+>.</P
+><P
+>Steps <A
+HREF="#RS-ADDRS"
+>8</A
+>-<A
+HREF="#WEB-SERVER"
+>11</A
+> set up real
+servers.</P
+></LI
+><LI
+><A
+NAME="RS-ADDRS"
+></A
+><P
+>On each real server, install an ethernet network card, eth0, create
+an IP address on the same private subnet as in Step <A
+HREF="#ROUTER-ADDRS"
+>3</A
+>, and assign a weight to each server indicating its
+processing capacity relative to that of the others. In this example, rs1 has
+twice the capacity (two processors) of rs2 and rs3.</P
+><DIV
+CLASS="INFORMALTABLE"
+><P
+></P
+><TABLE
+BORDER="1"
+CLASS="CALSTABLE"
+><TR
+><TH
+ALIGN="LEFT"
+VALIGN="TOP"
+> </TH
+><TH
+ALIGN="LEFT"
+VALIGN="TOP"
+>rs1</TH
+><TH
+ALIGN="LEFT"
+VALIGN="TOP"
+>rs2</TH
+><TH
+ALIGN="LEFT"
+VALIGN="TOP"
+>rs3</TH
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>eth0</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>192.168.1.3</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>192.168.1.4</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>192.168.1.5</TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>weight</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>2000</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>1000</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>1000</TD
+></TR
+></TABLE
+><P
+></P
+></DIV
+></LI
+><LI
+><A
+NAME="DEFAULT-ROUTE"
+></A
+><P
+>On each real server, verify that the address named in Step <A
+HREF="#NAT-ADDR"
+>4</A
+> (192.168.1.254) is its default route for communicating with
+the active LVS router.</P
+></LI
+><LI
+><A
+NAME="LOADMONITOR-TOOL"
+></A
+><P
+>Decide which program (<B
+CLASS="COMMAND"
+>uptime</B
+>, <B
+CLASS="COMMAND"
+>ruptime</B
+>,
+<B
+CLASS="COMMAND"
+>rup</B
+>) will be used by the active router to monitor the
+workload on the real servers. If you choose <B
+CLASS="COMMAND"
+>uptime</B
+>, each 
+LVS router must be able to connect with each real server without
+administrator intervention, using the tool family you selected in Step <A
+HREF="#SYNC-TOOL"
+>6</A
+>. See <A
+HREF="#NODE-PREREQS"
+>Table 2</A
+> for general enablement
+instructions. If the selected tool cannot be enabled (for example, one of the real
+servers is an NT box), the scheduling algorithms that use dynamic load
+information will still work but the user-assigned weights will be statically
+applied rather than dynamically adjusted based on load.</P
+></LI
+><LI
+><A
+NAME="WEB-SERVER"
+></A
+><P
+>Verify that each real server runs an installed and configured httpd server. Note
+that the real servers must listen on the same port (80 in the example) as the
+corresponding virtual server. </P
+></LI
+><LI
+><P
+>Verify (for example, using <B
+CLASS="COMMAND"
+>telnet</B
+> or
+          <B
+CLASS="COMMAND"
+>ping</B
+>) that each real server can reach hosts on the
+          public LAN. If a real server on the private network cannot
+          reach a host on your LAN, this probably indicates a communication
+          failure between the server and the active router. See Steps <A
+HREF="#RS-ADDRS"
+>8</A
+> and <A
+HREF="#DEFAULT-ROUTE"
+>9</A
+>.</P
+></LI
+><LI
+><A
+NAME="RUNTIME-PARAMS"
+></A
+><P
+>Determine the runtime parameters. For some of these, you may
+          need to experiment over time to obtain optimal values. In this
+          example, we will use the values listed.</P
+><DIV
+CLASS="INFORMALTABLE"
+><P
+></P
+><TABLE
+BORDER="1"
+CLASS="CALSTABLE"
+><TR
+><TH
+ALIGN="LEFT"
+VALIGN="TOP"
+>Value</TH
+><TH
+ALIGN="LEFT"
+VALIGN="TOP"
+>Parameter Description</TH
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>1050</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Number of the heartbeat listening port on the primary
+                  and backup routers.</TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>2</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Number of seconds between heartbeats.</TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>10</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Number of seconds to wait for a non-responding router
+                  to respond before initiating failover.</TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>10</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Number of seconds to wait for a non-responding real
+                  server to respond before removing it from the routing
+                  table.</TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>180</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>When a real server that has been removed from the
+                  routing table starts responding again, wait this number of
+                  seconds before re-adding the server to the routing
+                  table.</TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>wlc</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Use the Weighted least-connections load-balancing
+                  algorithm (assign more jobs to servers that are least busy
+                  relative to their load-adjusted weight). See <A
+HREF="#LOAD-BALANCING"
+>Table 1</A
+> for a description of the choices.</TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>http</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Application. The alternative is ftp.</TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>80</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Virtual server port number. The listening port selected
+                  for the virtual server is used on the real servers as
+                  well.</TD
+></TR
+></TABLE
+><P
+></P
+></DIV
+></LI
+></OL
+><P
+>Now we are ready to implement the example. You can do this from a
+      shell as explained in the next section. Or you can use the GUI
+      configuration tool as explained in <A
+HREF="#EXAMPLE-PIRANHA"
+>Section 9.3</A
+>.</P
+></DIV
+><DIV
+CLASS="SECT2"
+><HR><H2
+CLASS="SECT2"
+><A
+NAME="EXAMPLE-EDIT-CF"
+>9.2. Implementing the Example from the Shell</A
+></H2
+><P
+></P
+><OL
+TYPE="1"
+><LI
+><P
+>With your favorite editor, open <TT
+CLASS="FILENAME"
+>lvs.cf</TT
+>
+          and set the values shown below. The number on the right is a link
+          to the step in <A
+HREF="#EXAMPLE-SETUP"
+>Section 9.1</A
+> that discusses
+          this setting.
+        <P
+CLASS="LITERALLAYOUT"
+>#&nbsp;Global&nbsp;section<br>
+primary&nbsp;=&nbsp;1.2.3.2&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<A
+HREF="#ROUTER-ADDRS"
+>3</A
+><br>
+backup&nbsp;=&nbsp;&nbsp;1.2.3.3&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<A
+HREF="#ROUTER-ADDRS"
+>3</A
+><br>
+keepalive&nbsp;=&nbsp;2&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<A
+HREF="#RUNTIME-PARAMS"
+>13</A
+><br>
+deadtime&nbsp;=&nbsp;10&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<A
+HREF="#RUNTIME-PARAMS"
+>13</A
+><br>
+heartbeat_port&nbsp;=&nbsp;1050&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<A
+HREF="#RUNTIME-PARAMS"
+>13</A
+><br>
+rsh_command&nbsp;=&nbsp;rsh&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<A
+HREF="#SYNC-TOOL"
+>6</A
+><br>
+network&nbsp;=&nbsp;nat<br>
+nat_router&nbsp;=&nbsp;192.168.1.254&nbsp;eth1:1&nbsp;&nbsp;&nbsp;&nbsp;<A
+HREF="#NAT-ADDR"
+>4</A
+><br>
+#&nbsp;Per-virtual-server&nbsp;section<br>
+virtual&nbsp;server&nbsp;vs1&nbsp;{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<A
+HREF="#RS-ADDRS"
+>8</A
+>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>
+&nbsp;address&nbsp;=&nbsp;1.2.3.1&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<A
+HREF="#VS-ADDR"
+>1</A
+><br>
+&nbsp;active&nbsp;=&nbsp;1<br>
+&nbsp;load_monitor&nbsp;=&nbsp;ruptime&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<A
+HREF="#LOADMONITOR-TOOL"
+>10</A
+><br>
+&nbsp;timeout&nbsp;=&nbsp;10&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<A
+HREF="#RUNTIME-PARAMS"
+>13</A
+><br>
+&nbsp;reentry&nbsp;=&nbsp;180&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<A
+HREF="#RUNTIME-PARAMS"
+>13</A
+><br>
+&nbsp;port&nbsp;=&nbsp;80&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<A
+HREF="#RUNTIME-PARAMS"
+>13</A
+><br>
+&nbsp;scheduler&nbsp;=&nbsp;wlc&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<A
+HREF="#RUNTIME-PARAMS"
+>13</A
+><br>
+#&nbsp;Per-real-server&nbsp;section<br>
+&nbsp;server&nbsp;rs1&nbsp;{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<A
+HREF="#RS-ADDRS"
+>8</A
+><br>
+&nbsp;&nbsp;address&nbsp;=&nbsp;192.168.1.3&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<A
+HREF="#RS-ADDRS"
+>8</A
+><br>
+&nbsp;&nbsp;active&nbsp;=&nbsp;1<br>
+&nbsp;&nbsp;weight&nbsp;=&nbsp;2000&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<A
+HREF="#RS-ADDRS"
+>8</A
+><br>
+&nbsp;}<br>
+&nbsp;server&nbsp;rs2&nbsp;{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<A
+HREF="#RS-ADDRS"
+>8</A
+><br>
+&nbsp;&nbsp;address&nbsp;=&nbsp;192.168.1.4&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<A
+HREF="#RS-ADDRS"
+>8</A
+><br>
+&nbsp;&nbsp;active&nbsp;=&nbsp;1<br>
+&nbsp;&nbsp;weight&nbsp;=&nbsp;1000&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<A
+HREF="#RS-ADDRS"
+>8</A
+><br>
+&nbsp;}<br>
+&nbsp;server&nbsp;rs3&nbsp;{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<A
+HREF="#RS-ADDRS"
+>8</A
+><br>
+&nbsp;&nbsp;address&nbsp;=&nbsp;192.168.1.5&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<A
+HREF="#RS-ADDRS"
+>8</A
+><br>
+&nbsp;&nbsp;active&nbsp;=&nbsp;1<br>
+&nbsp;&nbsp;weight&nbsp;=&nbsp;1000&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<A
+HREF="#RS-ADDRS"
+>8</A
+><br>
+&nbsp;}<br>
+}<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</P
+>
+        </P
+></LI
+><LI
+><P
+>          Copy the edited configuration file to the backup router.
+          </P
+></LI
+><LI
+><P
+>          On the primary router, start the <B
+CLASS="COMMAND"
+>pulse</B
+>
+          daemon with this command:</P
+><P
+CLASS="LITERALLAYOUT"
+>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;/etc/rc.d/init.d/pulse&nbsp;start&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</P
+></LI
+><LI
+><P
+>          Start <B
+CLASS="COMMAND"
+>pulse</B
+> on the backup router.
+          </P
+></LI
+></OL
+></DIV
+><DIV
+CLASS="SECT2"
+><HR><H2
+CLASS="SECT2"
+><A
+NAME="EXAMPLE-PIRANHA"
+>9.3. Implementing the Example with Piranha</A
+></H2
+><P
+></P
+><OL
+TYPE="1"
+><LI
+><P
+>On the primary LVS router, as root, type <B
+CLASS="COMMAND"
+>piranha &#38;</B
+> to start
+the GUI configuration tool. </P
+></LI
+><LI
+><P
+>Click the Global Settings tab and enter the values shown:</P
+><DIV
+CLASS="INFORMALTABLE"
+><P
+></P
+><TABLE
+BORDER="1"
+CLASS="CALSTABLE"
+><TR
+><TH
+ALIGN="LEFT"
+VALIGN="TOP"
+>Field</TH
+><TH
+ALIGN="LEFT"
+VALIGN="TOP"
+>Enter:</TH
+><TH
+ALIGN="LEFT"
+VALIGN="TOP"
+>See Step:</TH
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Primary LVS server IP</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>1.2.3.2</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+><A
+HREF="#ROUTER-ADDRS"
+>3</A
+></TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>NAT Router IP</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>192.168.1.254</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+><A
+HREF="#NAT-ADDR"
+>4</A
+></TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>NAT Router Device</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>eth1:1</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+><A
+HREF="#NAT-ADDR"
+>4</A
+></TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Sync tool</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>rsh</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+><A
+HREF="#SYNC-TOOL"
+>6</A
+></TD
+></TR
+></TABLE
+><P
+></P
+></DIV
+></LI
+><LI
+><P
+>Click the Redundancy tab and enter the values shown:</P
+><DIV
+CLASS="INFORMALTABLE"
+><P
+></P
+><TABLE
+BORDER="1"
+CLASS="CALSTABLE"
+><TR
+><TH
+ALIGN="LEFT"
+VALIGN="TOP"
+>Field</TH
+><TH
+ALIGN="LEFT"
+VALIGN="TOP"
+>Enter:</TH
+><TH
+ALIGN="LEFT"
+VALIGN="TOP"
+>See Step:</TH
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Enable Redundant server</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>(select)</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+> </TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Redundant LVS server IP</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>1.2.3.3</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+><A
+HREF="#ROUTER-ADDRS"
+>3</A
+></TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Heartbeat interval</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>2</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+><A
+HREF="#RUNTIME-PARAMS"
+>13</A
+></TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Assume dead after</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>10</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+><A
+HREF="#RUNTIME-PARAMS"
+>13</A
+></TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Heartbeat port</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>1050</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+><A
+HREF="#RUNTIME-PARAMS"
+>13</A
+></TD
+></TR
+></TABLE
+><P
+></P
+></DIV
+></LI
+><LI
+><P
+>Click the Virtual Servers tab. On the tab, click Add, then Edit, and
+enter the values shown:</P
+><DIV
+CLASS="INFORMALTABLE"
+><P
+></P
+><TABLE
+BORDER="1"
+CLASS="CALSTABLE"
+><TR
+><TH
+ALIGN="LEFT"
+VALIGN="TOP"
+>Field</TH
+><TH
+ALIGN="LEFT"
+VALIGN="TOP"
+>Enter:</TH
+><TH
+ALIGN="LEFT"
+VALIGN="TOP"
+>See Step:</TH
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Name</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>vs1</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+> </TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Application</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>http</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+><A
+HREF="#RUNTIME-PARAMS"
+>13</A
+></TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Port</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>80</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+><A
+HREF="#RUNTIME-PARAMS"
+>13</A
+></TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Address</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>1.2.3.1</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+><A
+HREF="#VS-ADDR"
+>1</A
+></TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Device</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>eth0:1</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+><A
+HREF="#ROUTER-ADDRS"
+>3</A
+></TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Re-entry time</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>180</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+><A
+HREF="#RUNTIME-PARAMS"
+>13</A
+></TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Service timeout</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>10</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+><A
+HREF="#RUNTIME-PARAMS"
+>13</A
+></TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Load monitoring tool</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>ruptime</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+><A
+HREF="#LOADMONITOR-TOOL"
+>10</A
+></TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Scheduling</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>weighted least-connections</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+><A
+HREF="#RUNTIME-PARAMS"
+>13</A
+></TD
+></TR
+></TABLE
+><P
+></P
+></DIV
+></LI
+><LI
+><A
+NAME="RS-CONFIG"
+></A
+><P
+>Click the Real Servers tab. On the tab, click Add, then Edit, and enter the values
+shown:</P
+><DIV
+CLASS="INFORMALTABLE"
+><P
+></P
+><TABLE
+BORDER="1"
+CLASS="CALSTABLE"
+><TR
+><TH
+ALIGN="LEFT"
+VALIGN="TOP"
+>Field</TH
+><TH
+ALIGN="LEFT"
+VALIGN="TOP"
+>Enter:</TH
+><TH
+ALIGN="LEFT"
+VALIGN="TOP"
+>See Step:</TH
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Name</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>rs1</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+><A
+HREF="#RS-ADDRS"
+>8</A
+></TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Address</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>192.168.1.3</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+><A
+HREF="#RS-ADDRS"
+>8</A
+></TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>Weight</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+>2000</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+><A
+HREF="#RS-ADDRS"
+>8</A
+></TD
+></TR
+></TABLE
+><P
+></P
+></DIV
+></LI
+><LI
+><P
+>Repeat Step <A
+HREF="#RS-CONFIG"
+>5</A
+> for rs2 (192.168.1.4) and rs3
+(192.168.1.5). For them, enter a weight of 1000, which will indicate that rs1
+has twice the computing capacity of rs2 and rs3.</P
+></LI
+><LI
+><P
+>Click Close to return to the Real Servers tab. There, select each real
+server and click Activate to activate it.</P
+></LI
+><LI
+><P
+>Click Close to return to the Virtual Servers tab. There, select the vs1
+virtual server and click Activate to activate it.</P
+></LI
+><LI
+><P
+>Click the Controls/Monitoring tab and:</P
+><P
+></P
+><OL
+TYPE="a"
+><LI
+><P
+>Click the Start button (name changes to Stop).</P
+></LI
+><LI
+><P
+>If you check "Add pulse daemon to this runlevel" the cluster will be
+started at boot time and, on startup of piranha, the button above will
+usually be labeled Stop.</P
+></LI
+></OL
+></LI
+><LI
+><P
+>Log in to the backup router and start <B
+CLASS="COMMAND"
+>pulse</B
+>
+          with this command:
+          <P
+CLASS="LITERALLAYOUT"
+><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;/etc/rc.d/init.d/pulse&nbsp;start<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</P
+></P
+></LI
+></OL
+><P
+>If you enter the values exactly as shown above, piranha generates at the end of
+the configuration file the structures shown below for this virtual server and
+its real servers.</P
+><P
+CLASS="LITERALLAYOUT"
+>network&nbsp;=&nbsp;nat<br>
+nat_router&nbsp;=&nbsp;192.168.1.254&nbsp;eth1:1<br>
+<br>
+virtual&nbsp;vs1&nbsp;{<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;address&nbsp;=&nbsp;1.2.3.1&nbsp;eth0:1<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;active&nbsp;=&nbsp;1<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;scheduler&nbsp;=&nbsp;wlc<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;load_monitor&nbsp;=&nbsp;ruptime<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;timeout&nbsp;=&nbsp;5<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;server&nbsp;rs1&nbsp;{<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;address&nbsp;=&nbsp;192.168.1.3<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;active&nbsp;=&nbsp;1<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;weight&nbsp;=&nbsp;2000<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;server&nbsp;rs2&nbsp;{<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;address&nbsp;=&nbsp;192.168.1.4<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;active&nbsp;=&nbsp;1<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;weight&nbsp;=&nbsp;1000<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;server&nbsp;rs3&nbsp;{<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;address&nbsp;=&nbsp;192.168.1.5<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;active&nbsp;=&nbsp;1<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;weight&nbsp;=&nbsp;1000<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}<br>
+}</P
+></DIV
+></DIV
+></DIV
+></BODY
+></HTML
+>

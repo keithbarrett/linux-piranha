@@ -1,0 +1,87 @@
+.TH PULSE 8 "Tue Sep 21 1999" 
+.UC 4
+.SH NAME
+pulse \- heartbeating daemon for monitoring the health of cluster nodes 
+.SH SYNOPSIS
+.nf
+.BI "pulse [-c " file "|--configfile= " file "] [-n|--nodaemon]
+.BI "[--forceactive] [--lvs= " path "] [--fos= " path "]"
+.BI "[-v|--verbose] [-t|--test-start] [--norun]"
+.BI " [-?|--help] [--usage] [--version]"
+.fi
+.SH DESCRIPTION
+\fBpulse\fR is a daemon used by \fBlvs\fP nodes to monitor one another's health
+and to initiate the failover of the \fBlvs\fR or \fBfos\fR daemon. 
+It makes use of the 
+\fBlvs.cf\fR(5) configuration file for items such as length of time between
+heartbeats and length of time before declaring the remote server to be dead
+and initiate a failover.
+.PP
+\fBpulse\fR, which runs on the primary and backup nodes, is used by
+each to determine that the other is still alive. If the backup node fails to
+receive a heartbeat from the primary node after a set amount of time
+(specified in \fBlvs.cf\fR), it will assume ownership of all virtual
+service(s) being provided by the primary node. Its takeover process includes
+bringing up aliased device(s) for all virtual service(s) as well as sending
+out gratuitous ARPs to associate the floating IP(s) with the MAC address
+of the backup node.
+.PP
+If and when a failed primary node returns to a functioning status, it assumes 
+the backup role unless specifically forced to assume
+the primary role. To reduce the number of faults seen by clients and avoid the
+breaking persistent client connections, you should minimize the number of
+failovers.
+.SH OPTIONS
+.TP
+.BI "-c "file "|--configfile= "file
+Normally, \fBpulse\fR uses \fIlvs.cf\fR as its configuration file, but 
+this can be overridden and another file can be used.
+.TP
+.BI "-n|--nodaemon"
+Normally, \fBpulse\fR runs as a daemon but with this option
+runs in the foreground.  When running in this mode, \fBpulse\fR sends all
+output to \fISTDOUT\fR instead of to \fBsyslog\fR.
+.TP
+.BI "--forceactive"
+When this flag is used, the machine that \fBpulse\fP runs on will forceably
+take over as the primary \fBlvs\fR router and other machine will become the
+backup.
+.TP
+.BI "--lvs= "path
+By default, \fBpulse\fR looks in /usr/sbin for \fBlvs\fR; use \fIpath\fR
+to tell \fBpulse\fR to look elsewhere for the program.
+.TP
+.BI "--fos= "path
+By default, \fBpulse\fR looks in /usr/sbin for \fBfos\fR; use \fIpath\fR
+to tell \fBpulse\fR to look elsewhere for the program.
+.TP
+.BI "-t|--test-start"
+Runs \fBpulse\fR in a test mode. Reports, but does not actually start,
+the rest of the daemom processes (lvs, fos, etc.).
+.TP
+.BI "--norun"
+Historical. Same as --test-start.
+.TP
+.BI "-v|--verbose"
+Displays debugging information
+.TP
+.BI "-?|--help"
+Shows a verbose usage listing.
+.TP
+.BI "--usage"
+Outputs a terse argument summary.
+.TP
+.BI "--version"
+Displays program version.
+
+.SH SEE ALSO
+.IR lvs.cf (5),
+.IR ipvsadmn (8),
+.IR lvs (8).
+.IR fos (8).
+.IR nanny (8).
+
+.SH AUTHOR
+.nf
+Erik Troan <ewt@redhat.com>
+.fi

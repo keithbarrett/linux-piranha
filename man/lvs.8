@@ -1,0 +1,56 @@
+.TH LVS 8 "Thu May 10 2001" 
+.UC 4
+.SH NAME
+lvs \- daemon to control the Red Hat clustering services. 
+.SH SYNOPSIS
+.B lvs [-c \fIcfgfile\fP|--configfile=\fIcfgfile\fP] [-n|--nodaemon]
+[--nofork] [-t|--test-start] [-?|--help] [--usage] [--version]
+.SH DESCRIPTION
+\fBlvs\fR reads in the cluster configuration file \fIlvs.cf\fR, calls 
+\fBipvsadm\fR to maintain the IPVS routing table, and \fBnanny\fR to perform 
+monitoring services.
+.sp
+\fBlvs\fR is normally started by \fBpulse\fP although it can be run as a command line
+tool.  Similarly, the configuration file that tells \fBlvs\fP what to do is normally
+edited by \fBpiranha\fR, but it can be manually edited.
+.sp
+All activity from \fBlvs\fR is logged to \fBsyslog\fR (when \fBlvs\fR is
+running as a daemon).
+.SH OPTIONS
+.TP
+.BI "-c "cfgfile "|--configfile=" cfgfile
+Normally, \fBlvs\fR uses \fIlvs.cf\fR as its configuration file, but this
+can be overridden and another file can be used.
+.TP
+.BI "-n|--nodaemon"
+Normally, \fBlvs\fR runs as a daemon, however using this option, \fBlvs\fR
+runs in the foreground.  When running in this mode, all its output is sent to
+\fISTDOUT\fR instead of \fBsyslog\fR.
+.TP
+.BI "--nofork"
+Don't fork, but do perform disassociate.
+.TP
+.BI "-t|--test-start"
+Running \fBlvs\fR is test mode allows the user to monitor what \fBlvs\fR would
+actually do.  This is only useful during debugging.
+.TP
+.BI "-?|--help"
+Shows a verbose usage listing.
+.TP
+.BI "--usage"
+Outputs a terse argument summary.
+.TP
+.BI "--version"
+Displays program version.
+
+.SH SEE ALSO
+.IR ipvsadmn (8)
+.IR lvs.cf (5)
+.IR nanny (8)
+.IR pulse (8)
+.IR send_arp (8)
+
+.SH AUTHOR
+.nf
+Erik Troan <ewt@redhat.com>
+.fi

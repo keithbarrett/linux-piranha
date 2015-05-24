@@ -1,0 +1,349 @@
+<html>
+<head>
+<Title>Piranha FAQ</title>
+</head>
+
+<body bgcolor=white>
+<center>
+<h1><font color=red>Piranha FAQ</font></h1>
+<br>
+<p><b>Author: Keith Barrett, Red Hat Inc.<br>
+Last Edit: May 21, 2001</b>
+</center>
+
+
+<p><center><hr></center><p>
+
+<h3>What HA service should I use; fos or lvs?</h3>
+<p>The answer depends on how your requirements match the service features.
+<p><b>FOS</b><p>
+Increases fault-tolerance of Linux provided IP services.
+<p>
+<ul>
+<li>Requires 2 linux systems (one active system, one standby system)
+<li>Provides automatic failover of IP services, or custom created
+services and applications, to the standby system.
+<li>No load balancing. No non-linux systems can participate.
+<li>Primarily used in infrastructures where just a simple, service
+failover setup is needed for increased service reliability or
+handling any downtime.
+</ul>
+
+<p><b>LVS</b><p>
+Provides increased fault-tolerance, and load balancing, of a pool
+of Linux and non-Linux servers providing various IP services.
+<p>
+<ul>
+<li>Supports heterogenous systems (i.e. non-linux systems can be
+members in the cluster).
+<li>Minimally requires 2 linux systems (one active, one standby)
+to act as traffic routers, plus one or more service
+providing systems (i.e. webservers, ftp servers, etc.).
+<li>Number of nodes limited only by the hardware and network used.
+<li>Provides load-balancing and improved fault-tolerance
+of the service providing systems.
+<li>Service providing systems can all be on a private, hidden network and
+will appear as a single system and ip address to the public network.
+<li>Can be used to automatically map, route, and
+failover IP addresses as a means of redirecting services because of
+downtime or because the servers are all on a private hidden network.
+</ul>
+
+<p><center><hr></center><p>
+
+
+<h3>Do I have to let piranha start/stop the services? Can't I already
+have them running on the backup node?</h3>
+<p>
+
+Yes you can, and this does have advantages (faster failover, or using the
+backup system for other activities).
+<p>
+If you want, you can have the services already running on the backup system,
+and just define useless start and stop commands or fake scripts that do
+nothing for that service.
+<p>
+
+HOWEVER
+<p>
+There is a trade-off. Unless you do some special scripting of your own,
+you will have a cluster that is only reliable for one failover. A second
+failure might require manual intervention.
+<p>
+Normally, if a failover occurs the backup system becomes active. If the
+failed system comes back online and the backup system then has a failure,
+it will automatically failover again to the previously failed system.
+Piranha helps ensure the services are functional by restarting them.
+<p>
+In your senerio, the failover to the backup system works the same and is
+reliable, but if the original system is online and a failure then occurs
+on the backup system, it will attempt failover back to the original system.
+Unless you corrected the problem that system may still have non-functioning
+services that caused the original failover. You could end up with a
+non-functioning cluster at that point, or a ping-pong back and forth.
+<p>
+Some might call this a double failure and accept the risk, some cannot.
+Depends on your business situation. 
+
+
+
+<p><center><hr></center><p>
+
+
+<h3>Do you support shared-scsi?</h3>
+<p>Not at this time. Applications or IP services requiring access to 
+a shared database need to have that data NFS mounted from an external
+system. That external system can be a fault-tolerant RAID server or
+SANs type device to eliminate vulnerabilities.
+
+
+<p><center><hr></center><p>
+
+
+<h3>Do you support journal file systems?</h3>
+<p>Although they are not yet provided in the product, there is nothing in
+the <font color=red>HA Server product</font> that would prevent the use of
+the various forms of Linux HA technology (including file systems)
+available in the community.
+<p>A future release of the <font color=red>HA Server</font> product will
+provide support for the installation and use of the Ext3 journaling file
+system. The <font color=red>Red Hat HA Team</font> has already announced a
+<a href="http://people.redhat.com/kbarrett/HA/news/Ext3_Program.txt">
+Beta test program</a> for Ext3.
+
+<p><center><hr></center><p>
+
+<h3>Do you support UDP communications?</h3>
+<p>Yes, in piranha releases 0.4.16-3 or later. The 1.0 <font
+color=red>High Availability Server</font> product shipped with
+piranha 0.4.16-2, so you do need to update to use UDP. Check the software
+download area.
+<p>Also note that in order to test a UDP service, the service MUST support
+responding with a text message after a text message was sent to it. UDP
+services cannot be connected to, so a connect-only test is insufficient.
+
+<p><center><hr></center><p>
+
+
+<h3>How do I incorporate Windows NT (or other OS) into the
+cluster?</h3>
+<p>The product documentation does not go into this in great
+detail. Because Red Hat does not sell Windows NT, Red Hat support
+cannot be used to help with questions or problems regarding
+its use.
+<p>Windows NT, and other OS's, can participate as a Real Server
+in an LVS setup, providing IP services such as ftp or http.
+In this setup, the server cam be included in the load-balancing
+provision of services, but because the server is not Linux, only
+round-robbin or number-of-connection based scheduling options will
+work. Scheduling based on computer load cannot be used because
+Windows NT does not support the rup, uptime, and ruptime
+shell commands.
+<p>Taking this example further, the 
+<font color=red>Red Hat High Availability Server</font>
+can be used to
+bring low-cost load-balancing or increased fault tolerance to
+a pool of Windows NT servers (all on a hidden, private network)
+providing web services to a public network and appearing as a single
+IP address to the clients
+<p>LVS can also be used to remap IP addresses so that client
+requests are redirected to a different server. One example of this
+would be a Windows NT system that is down, and you want to
+redirect all the client connection attempts to a different server
+without needing to change the IP address information in your network.
+Taken to an extreme, if your whole data center was on a hidden
+192.x.x.x private network, with the public IP addresses being mapped
+by LVS to the 192 addresses, then you could mix and match those
+addresses at will without changing client or WinNT server settings.
+Also, with all your servers on 192 addresses, you have more public
+IP addresses available for clients.
+<p>If you run a Linux cluster with Windows NT servers and would like
+to help others, post your information on the lvs mailing list.
+
+
+<p><center><hr></center><p>
+<h3>Why do I get a Read I/O timeout error even though I have
+no send or expect strings specified?</h3>
+<p>You are not using the most current release of the software. You
+need to upgrade to at least piranha version 0.4.16-3.
+<p>This was original behavior in the product for backwards compatibility
+with earlier releases of piranha and was documented.  Basically,
+not specifying a send or expect string for an http service caused the
+nanny program to use internal defaults.
+<p>This behavior has been modified and you should no longer see this
+problem. Corrected RPMs have been posted to the software download area.
+
+<p><center><hr></center><p>
+<h3>Why does only one of my virtual services start when start piranha?</h3>
+<p>There are several situations that can cause this:
+<ol>
+<li>You are using outdated software. There was a memory leak bug that
+has since been fixed which use to manifest itself as a startup problem
+sometimes.
+<li>You do not have "active = 1" in the service definition. Verify your
+your configuration file by running it through the GUI.
+<li>The services are using duplicate VIP addresses.
+<li>You are trying to define the same VIP address on multiple virtual
+interfaces.
+<li>You are trying to define multiple VIP addresses on the same virtual
+interface.
+</ol>
+
+
+<p><center><hr></center><p>
+
+<h3>Why doesn't the GUI automatically copy the changed configuration file?</h3>
+<p>This is planned for a future release. It simply did not make it into
+this release in time because the changes require extensive security review.
+
+<p><center><hr></center><p>
+
+<h3>Why is the GUI web based?</h3>
+<p>The original piranha GUI used X window, but it soon became
+apparent that a web GUI had much more advantages:
+<ul>
+<li>Almost every client, running any OS, has a web browser that can be used
+to configure and manage the cluster.
+<li>Windows XX client PCs did not need the added cost of having X server
+software like Hummingbird installed, saving client costs.
+<li>A web browser enables you to perform the administration tasks from
+any client, even from home via the internet, if set up properly.
+<li>You can always find the currently "live" Linux router by
+referencing the Virtual IP address instead of it's real one.
+<li>You can use the same tool (browser) to configure the cluster as
+you use to test it's functionality. This includes accessing a
+web page during a failure and watching it served by a different system.
+<li>Since all the product documentation is online on our web site,
+you can read it using the browser.
+</ul>
+
+
+<p><center><hr></center><p>
+<h3>Can I use a different web service on Linux than Apache?</h3>
+<p>Yes, however the piranha-gui must have apache on the system. Since
+the GUI runs as it's own daemon, on a private TCP/IP port,
+and with a private configuration file, it will not interfere with other httpd
+daemons running on the system providing other services. All that is
+needed for the piranha GUI to run is that a program or symbolic
+link called "/usr/sbin/piranha.gui" needs to exist -- that is the
+program the piranha gui expects to invoke apache. Bringing the piranha
+GUI up or down will not affect other web services, and vice versa.
+
+
+
+<p><center><hr></center><p>
+
+
+
+<h3>How does the <font color=red>Red Hat High Availability Server</font> product
+differ from <font color=red>Red Hat Linux</font> using piranha?</h3>
+<p><b>TECHNOLOGY</b>
+<p>The <font color=red>Red Hat High Availability Server</font>
+ product is basically  
+<font color=red>Red Hat Linux</font>, plus
+errata, plus piranha and ipvsadm. Performing a SERVER
+installation of the <font color=red>Red Hat Linux</font>
+product, and applying the
+latest errata, piranha, and ipvsadm
+will produce a system that has 100% of the functionality of the
+<font color=red>Red Hat High Availability Server</font> product. However because
+the HA installer was not involved in this installation process,
+there are a few resulting differences:
+<p>
+<ol>
+<li>The system will identify itself as only a Linux release
+in the login banner.
+<li>Some packages not normally installed by the HA installer
+will have been installed. This is harmless, and they can be
+removed if desired by performing rpm uninstall commands for
+those packages.
+<li>The HA installer places a "all:all" in /etc/hosts.deny.
+<li>The HA installer places some helpful editing comments in
+hosts.allow, hosts.deny, and .rhosts.
+<li>The /etc/motd file is set up to identify the system
+as "Red Hat High Availability Server".
+</ol>
+<p>These specific actions can be seen in the "installclass.py"
+script in the ha-installer archive in the download area.
+
+<p><b>NON-TECHNOLOGY</b>
+<p>The <font color=red>High Availability Server</font> product comes with:
+<ul>
+<li>A full year of support 
+<li>The <font color=red>"Red Hat High Availability Installation Guide"</font>.
+A 230+ page hardcopy installation, configuration, and 
+trouble-shooting manual. 
+<li>Includes Red Hat Linux release, plus piranha and ipvsadm, 
+plus all current errata and security patches 
+<li>The default installation takes about 1/3rd the time the full Linux 
+installation takes. 
+</ul>
+
+<p><center><hr></center><p>
+
+
+<h3>Can I turn my <font color=red>Red Hat linux</font> system
+into a <font color=red>Red Hat High Availability Server</font> system?</h3>
+<p>Yes you can, however there are some restrictions:
+<ol>
+<li>Obviously you will will not be able to register it or receive phone
+support other that what you are already entitled to as part of your Linux
+distribution.
+<li>You must be using a compatible version of 
+<font color=red>Red Hat Linux</font> (see the <a href="http://ha.redhat.com">
+HA Project web site</a> for more information).
+<li>Since the product installation software was not used to set up the
+system, some packages will have been installed that are normally not there
+because they are not required (this is not harmful),
+and some of the security changes will not have occurred. Again, this will not
+interfere will setting up a running system.
+<li>You will not have the <font color=red>High Availability Server
+Installation Gude</font>, however it is available online.
+</ol>
+<p>
+The process is basically to install the errata,
+and the updated RPMs for the kernel, piranha, and ipvsadm.
+
+
+<p><center><hr></center><p>
+
+<h3>Which packages are not installed by default in the
+<font color=red>High Availability Server</font> product installer?
+</h3>
+<p>
+A detailed list of what is and is not installed can be found by
+examining the comps-*-ha.in file in the "ha-installer" archive
+posted in the download area of the 
+<font color=red>Red Hat High Availability Server</font>
+web site. In that file,
+sections marked with a "0" are not installed by default, unless they are
+included in another section that IS being installed.
+<p>
+<b>Omitted Installation Classes:</b>
+<ol>
+<li>Printer support (lpr)
+<li>X-windows (and Gnome, KDE, Netscape, etc.)
+<li>Mail, News, uucp
+<li>NFS Server
+<li>Network Server (talk-server, rusers-server, rwall-server, finger-server,
+tftp-server, ypserv)
+<li>Samba
+<li>Anonymous ftp Server
+<li>Development, Kernel Development, languages, etc.
+</ol>
+<p>These packages can be individually selected for inclusion if you choose
+the "CUSTOM" installation option.
+
+
+
+
+
+
+
+
+<p><center><hr></center><p>
+Copyright 2001 Red Hat Inc.
+<p>
+
+</body>
+</html>
