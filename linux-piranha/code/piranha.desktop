@@ -1,7 +1,0 @@
-[Desktop Entry]
-Name=Piranha
-Comment=Clustering configuration and administration tool
-Exec=/usr/sbin/piranha
-Icon=/usr/share/pixmaps/piranha-icon.png
-Terminal=0
-Type=Application
