@@ -1,0 +1,537 @@
+<HTML
+><HEAD
+><TITLE
+>      Failover Services (FOS)
+    </TITLE
+><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.54"><LINK
+REL="HOME"
+TITLE="piranha"
+HREF="index.html"><LINK
+REL="UP"
+TITLE="      Piranha &#8212; Technology Overview
+    "
+HREF="p2242.html"><LINK
+REL="PREVIOUS"
+TITLE="        This is Only the Beginning&#8230;
+      "
+HREF="s1-security-only-a-start.html"><LINK
+REL="NEXT"
+TITLE="        FOS Architecture
+      "
+HREF="x2452.html"></HEAD
+><BODY
+CLASS="CHAPTER"
+BGCOLOR="#FFFFFF"
+TEXT="#000000"
+LINK="#0000FF"
+VLINK="#840084"
+ALINK="#0000FF"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="3"
+ALIGN="center"
+>piranha  </TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="bottom"
+><A
+HREF="s1-security-only-a-start.html"
+>Prev</A
+></TD
+><TD
+WIDTH="80%"
+ALIGN="center"
+VALIGN="bottom"
+></TD
+><TD
+WIDTH="10%"
+ALIGN="right"
+VALIGN="bottom"
+><A
+HREF="x2452.html"
+>Next</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="CHAPTER"
+><H1
+><A
+NAME="CH-FOS"
+>        Failover Services (FOS)
+    </A
+></H1
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="AEN2326"
+>An Overview of FOS</A
+></H1
+><P
+>        The Piranha technology that is part of Piranha consists of two types of
+        clustering technologies:
+        <P
+></P
+><UL
+><LI
+><P
+>              LVS (Linux Virtual Server)
+            </P
+></LI
+><LI
+><P
+>              FOS (FailOver Services)
+            </P
+></LI
+></UL
+>
+      </P
+><P
+>        With FOS, a person can set up a two-node Linux cluster consisting of an
+        active system and a standby system. The nodes will monitor each other
+        and, if the specified IP services (ftp, http, etc.) fail on the active
+        system, the services are switched over and provided by the standby
+        system. No additional systems or devices are required, and except for
+        the temporary loss of the service(s) during failure, the failover
+        process is transparent to end users.
+      </P
+><P
+>        A Piranha FOS cluster consists of two nodes: one functioning as the
+        <I
+CLASS="FIRSTTERM"
+>active</I
+> provider of IP services to the public
+        client network, and the other (called the
+        <I
+CLASS="FIRSTTERM"
+>inactive</I
+> node) monitors those services and
+        operates as a standby system. When any service on the active node
+        becomes unresponsive, the inactive node becomes active and provides
+        those services instead. Services are automatically started and stopped
+        as needed during the transition.  If the failed system comes back online
+        it will become the new inactive node and monitor for failures on the
+        now-active system.
+      </P
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="AEN2344"
+>Features</A
+></H2
+><P
+>          FOS consists of the following features:
+        </P
+><P
+></P
+><UL
+><LI
+><P
+>              Any IP service that supports a direct socket connection can be
+              monitored and can be migrated to the inactive node during
+              failover. This includes user-created services. Failover will occur
+              when the service becomes unresponsive to FOS monitoring; this is
+              independent of the number of users actually using the service.
+              Possible services includes:
+            </P
+><P
+></P
+><UL
+><LI
+><P
+>                  Web (http)
+                </P
+></LI
+><LI
+><P
+>                  ftp, inetd
+                </P
+></LI
+><LI
+><P
+>                  telnet
+                </P
+></LI
+><LI
+><P
+>                  lpd
+                </P
+></LI
+><LI
+><P
+>                  smtp/sendmail
+                </P
+></LI
+><LI
+><P
+>                  ssh
+                </P
+></LI
+><LI
+><P
+>                  LDAP
+                </P
+></LI
+><LI
+><P
+>                  Firewall services
+                </P
+></LI
+><LI
+><P
+>                  Other IP or user services
+                </P
+></LI
+></UL
+></LI
+><LI
+><P
+>              The system administrator can specify special send/expect script
+              strings as part of service monitoring for increased assurance that
+              the service is functioning properly.
+            </P
+></LI
+><LI
+><P
+>              FOS automatically starts and stops the monitored service as part
+              of failover. System administrators can specify the start and stop
+              commands or scripts (with arguments) for each monitored
+              service. Custom scripts are also permitted.
+            </P
+></LI
+><LI
+><P
+>              Although the nodes need to be identical in terms of FOS operation
+              and configuration, the clustered systems do not need to be
+              dedicated entirely to FOS. They can be used for additional
+              purposes beyond the services being monitored.
+            </P
+></LI
+><LI
+><P
+>              Although currently limited to clusters of two nodes, multiple
+              independent clusters are possible
+              <A
+NAME="AEN2382"
+HREF="#FTN.AEN2382"
+>[1]</A
+>
+              .
+            </P
+></LI
+><LI
+><P
+>              Each service can be defined as having a unique IP address,
+              independent of the cluster's node addresses. This makes it easier
+              to migrate existing environments where the IP services are already
+              being provided by multiple servers, to having those services
+              provided by a single "more fault-tolerant" cluster and keeping the
+              changes transparent to end users.
+            </P
+></LI
+></UL
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="AEN2387"
+>Current Restrictions</A
+></H2
+><P
+>          FOS has the following restrictions:
+        </P
+><P
+></P
+><UL
+><LI
+><P
+>              Specified services are monitored and failover as a group.
+              Services do not failover individually, nor are they load-balanced
+              between the systems.
+            </P
+></LI
+><LI
+><P
+>              Only services supporting direct socket connections can be
+              monitored. Services requiring connections to secondary ports apart
+              from the listening port cannot be monitored. Services not
+              currently supported include:
+            </P
+><P
+></P
+><UL
+><LI
+><P
+>                  nfs
+                </P
+></LI
+><LI
+><P
+>                  ntp/daytime
+                </P
+></LI
+></UL
+></LI
+><LI
+><P
+>              Shared data services (pop, imap, smtp) must have their data
+              NFS-mounted from a common exported source in order to maintain
+              data delivery.
+            </P
+></LI
+><LI
+><P
+>              Send/expect strings are limited to printable text characters only
+              (plus <B
+CLASS="COMMAND"
+>\r</B
+> and <B
+CLASS="COMMAND"
+>\n</B
+>). Binary
+              data cannot be explicitly sent or tested.
+            </P
+></LI
+><LI
+><P
+>              FOS must currently start and stop the monitored services as part
+              of the failover process to ensure reliability. The services cannot
+              already be running on the inactive node. This may reduce the
+              usefulness of the inactive node while it is operating as a standby
+              system.
+            </P
+></LI
+><LI
+><P
+>              Only two-node clusters are supported. Both nodes must be Linux
+              systems.
+            </P
+></LI
+><LI
+><P
+>              Because several IP services are handled by the
+              <B
+CLASS="COMMAND"
+>inetd</B
+> daemon rather than individual daemons,
+              there are situations where a non-FOS-configured service can be
+              affected by FOS if <B
+CLASS="COMMAND"
+>inetd</B
+> is involved. For
+              example; if you choose to monitor ftp, and ftp is started and
+              stopped by <B
+CLASS="COMMAND"
+>inetd</B
+>, then when FOS shuts down
+              <B
+CLASS="COMMAND"
+>inetd</B
+> other services <B
+CLASS="COMMAND"
+>inetd</B
+>
+              provides (such as <B
+CLASS="COMMAND"
+>rsh</B
+>) will also become
+              unavailable on that system.
+            </P
+></LI
+><LI
+><P
+>              The Piranha Web Interface does not, at present, provide a means to copy the
+              changed configuration file to the other nodes in the cluster, nor
+              an option for restarting FOS so it can use the updated file. These
+              operations must be done manually. This restriction is expected to
+              be removed in a future release.
+            </P
+></LI
+></UL
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="AEN2425"
+>Software Location</A
+></H2
+><P
+>          The FOS software is contained in the Piranha RPM files. The main RPM
+          (called <TT
+CLASS="FILENAME"
+>piranha</TT
+>) contains the FOS binaries, the
+          <TT
+CLASS="FILENAME"
+>piranha-gui</TT
+> RPM contains the Piranha Web Interface for
+          configuring the system, and the <TT
+CLASS="FILENAME"
+>ipvsadm</TT
+> RPM
+          contains the <B
+CLASS="COMMAND"
+>ipvsadm</B
+> program, which is used to
+          administer the virtual-server-specific aspects of Piranha. FOS
+          documentation and source code are also in the
+          <TT
+CLASS="FILENAME"
+>piranha-docs</TT
+> RPM and the
+          <TT
+CLASS="FILENAME"
+>piranha</TT
+> source RPM, respectively.
+        </P
+><P
+>          To obtain possible updates of these (or other) packages, visit <A
+HREF="http://www.redhat.com/apps/support/updates.html"
+TARGET="_top"
+>http://www.redhat.com/apps/support/updates.html</A
+>
+          on the Red Hat website.
+        </P
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="AEN2442"
+>Base Requirements</A
+></H2
+><P
+>          FOS requires two identical (or near-identical) Linux systems, both
+          accessible from the public client network. In addition, all services
+          being handled by FOS must be configured identically on both
+          systems. This is because both systems must operate from identical FOS
+          configuration files.
+        </P
+><P
+>          The source configuration file is created and maintained using the
+          Piranha Web Interface. This interface requires that Apache and PHP be installed
+          and configured on both cluster nodes.  Details concerning the
+          Piranha Web Interface can be found in <A
+HREF="ch-web-interface.html"
+> </A
+>.
+        </P
+></DIV
+></DIV
+></DIV
+><H3
+CLASS="FOOTNOTES"
+>Notes</H3
+><TABLE
+BORDER="0"
+CLASS="FOOTNOTES"
+WIDTH="100%"
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+WIDTH="5%"
+><A
+NAME="FTN.AEN2382"
+HREF="ch-fos.html#AEN2382"
+>[1]</A
+></TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+WIDTH="95%"
+><P
+>                  If clusters of more than two nodes are required, LVS must be
+                  used instead of FOS.  For more information on LVS, please turn
+                  to <A
+HREF="ch-lvs.html"
+>LVS Chapter</A
+>.
+                </P
+></TD
+></TR
+></TABLE
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="s1-security-only-a-start.html"
+>Prev</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="index.html"
+>Home</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="x2452.html"
+>Next</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>This is Only the Beginning&#8230;</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="p2242.html"
+>Up</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>FOS Architecture</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>

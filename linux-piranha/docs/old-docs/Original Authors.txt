@@ -1,0 +1,14 @@
+AUTHORS:
+Keith Barrett <kbarrett@redhat.com>
+Phil "Bryce" Copeland <copeland@redhat.com>
+Erik Troan <ewt@redhat.com>
+
+CONTRIBUTORS:
+Wensong Zhang <wensong@redhat.com>
+Mike Wangsmo <wanger@redhat.com>
+Joseph Mack <jmack@wm7d.net>
+Yuri Volobuev <volobuev@t1.chem.umn.edu>
+Keith Moore <keith.moore@renp.com>
+Lars Kellogg-Stedman <lars@larsshack.org>
+Tinus Strauss <Tinus.Strauss@eskom.co.za>
+
