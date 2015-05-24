@@ -1,0 +1,647 @@
+4
+
+1 Base {
+  basesystem
+  !alpha: mkbootdisk
+  linuxconf
+  gd
+  ldconfig
+  chkconfig
+  ntsysv
+  mktemp
+  setup
+  setuptool
+  filesystem
+  MAKEDEV
+  SysVinit
+  alpha: aboot
+  i386: apmd
+  ash
+  at
+  authconfig
+  bash
+  bc
+  bdflush
+  binutils
+  bzip2
+  console-tools
+  cpio
+  cracklib-dicts
+  cracklib
+  crontabs
+  dev
+  diffutils
+  e2fsprogs
+  ed
+  sparc: ethtool
+  eject
+  etcskel
+  file
+  fileutils
+  findutils
+  gawk
+  gdbm
+  getty_ps
+  gmp
+  gpm
+  gnupg
+  grep
+  groff
+  gzip
+  hdparm
+  info
+  initscripts
+  alpha: isapnptools
+  i386: isapnptools
+  kbdconfig
+  kernel
+  kernel-utils
+  i386: ld.so
+  sparc: ld.so
+  less
+  ldconfig
+  i386: libc
+  glib
+  glibc
+  kudzu
+  libstdc++
+  libtermcap
+  i386: lilo
+  logrotate
+  losetup
+  (lang ja_JP): locale-ja
+  mailcap
+  mailx
+  man
+  !alpha: mkinitrd
+  sparc: genromfs
+  mingetty
+  modutils
+  mount
+  mouseconfig
+  mt-st
+  ncompress
+  ncurses
+  net-tools
+  newt
+  passwd
+  pam
+  pciutils
+  tcsh
+  i386: kernel-pcmcia-cs
+  perl
+  procmail
+  procps
+  sparc: prtconf
+  psmisc
+  popt
+  pump
+  pwdb
+  quota
+  raidtools
+  readline
+  redhat-logos
+  redhat-release
+  rootfiles
+  rpm
+  sash
+  sed
+  setserial
+  sendmail
+  shadow-utils
+  sh-utils
+  sparc: silo
+  slang
+  slocate
+  sparc64: sparc32
+  stat
+  sysklogd
+  tar
+  rmt
+  termcap
+  textutils
+  time
+  timeconfig
+  tmpwatch
+  utempter
+  util-linux
+  vim-minimal
+  vim-common
+  vixie-cron
+  anacron
+  which
+  zlib
+  sparc: perl
+  sparc: tcsh
+}
+
+0 Printer Support {
+  chkfontpath
+  groff-perl
+  perl
+  tcsh
+  lpr
+  mpage
+  rhs-printfilters
+  libpng
+  ghostscript
+  pnm2ppa
+  ghostscript-fonts
+  urw-fonts
+  XFree86-xfs
+  XFree86-libs
+}
+
+0 --hide X Window System {
+  @ Printer Support
+  netscape-communicator
+  netscape-common
+  sparc: compat-libs
+  sparc: compat-glibc
+  alpha: Tru64-compat
+  usermode
+  gtk+
+  glib10
+  gtk+10
+  gnome-linuxconf
+  libjpeg
+  libtiff
+  libgr-progs
+  ImageMagick
+  imlib
+  libungif
+  ORBit
+  audiofile
+  Mesa
+  gnome-audio
+  gnome-libs
+  esound
+  libpng
+  X11R6-contrib
+  xinitrc
+  XFree86
+  XFree86-75dpi-fonts
+  (lang ru_RU.KOI8-R): XFree86-cyrillic-fonts
+  (lang tr_TR): XFree86-ISO8859-9-75dpi-fonts
+  (lang cs_CZ): XFree86-ISO8859-2-75dpi-fonts
+  (lang pl_PL): XFree86-ISO8859-2-75dpi-fonts
+  (lang ro_RO): XFree86-ISO8859-2-75dpi-fonts
+  (lang sl_SI): XFree86-ISO8859-2-75dpi-fonts
+  (lang sk_SK): XFree86-ISO8859-2-75dpi-fonts
+  freetype
+  sparc: XFree86-Sun
+  XFree86-libs
+  Xaw3d
+  xsri
+  Xconfigurator
+  control-panel
+  expect
+  !alpha: kernelcfg
+  fortune-mod
+  fvwm2
+  fvwm2-icons
+  gpgp
+  gv
+  helptool
+  ical
+  indexhtml
+  libgr
+  rxvt
+  m4
+  mkxauth
+  sharutils
+  modemtool
+  netcfg
+  printtool
+  tkinter
+  pygnome
+  pygtk
+  python
+  pythonlib
+  timetool
+  tcl
+  tclx
+  tix
+  wmconfig
+  switchdesk
+  tetex-xdvi
+  tetex-fonts
+  tk
+  tksysv
+  rpm-python
+  up2date
+  xloadimage
+  xpm
+  xpdf
+  xscreensaver
+}
+
+0 GNOME {
+  @ X Window System
+  audiofile
+  bug-buddy
+  control-center
+  desktop-backgrounds
+  ee
+  enlightenment
+  enlightenment-conf
+  esound
+  extace
+  fnlib
+  gdm
+  glade
+  glib
+  gtk+
+  gtk-engines
+  mc
+  gftp
+  gedit
+  gmc
+  gnome-audio
+  gnome-audio-extra
+  gnome-core
+  gnome-libs
+  gnome-pim
+  gnome-users-guide
+  gnome-utils
+  gnorpm
+  gnotepad+
+  gnumeric
+  gqview
+  gtop
+  guile
+  umb-scheme
+  imlib
+  imlib-cfgeditor
+  libglade
+  libghttp
+  libgtop
+  librep
+  libxml
+  libxml10
+  magicdev
+  ORBit
+  pygnome-libglade
+  pygtk-libglade
+  sawmill
+  sawmill-gnome
+  switchdesk-gnome
+  rep-gtk
+  rep-gtk-libglade
+  xchat
+  xscreensaver
+}
+
+0 KDE {
+  @ X Window System
+  kdeadmin
+  kdebase
+  kdebase-lowcolor-icons
+  kdelibs
+  kdesupport
+  kdeutils
+  kdpms
+  korganizer
+  kpackage
+  kpilot
+  qt
+  qt1x
+  libstdc++
+  pilot-link
+  switchdesk-kde
+  zip
+  unzip
+}
+
+
+0 Mail/WWW/News Tools {
+  ? X Window System {
+    exmh
+    xrn
+    xmailbox
+  }
+  krb5-configs
+  krb5-libs
+  elm
+  fetchmail
+  inews
+  indexhtml
+  ispell
+  tcsh
+  metamail
+  mutt
+  lynx
+  urlview
+  nmh
+  pine
+  sharutils
+  perl
+  slrn
+  tin
+  trn
+  words
+}
+
+
+1 --hide Network Required {
+  bind-utils
+  ftp
+  indexhtml
+  inetd
+  ipchains
+  iputils
+  ncftp
+  portmap
+  rdate
+  rsh
+  rsh-server
+  rusers
+  rusers-server
+  rwho
+  tcp_wrappers
+  telnet
+  traceroute
+}
+
+
+0 Networked Workstation {
+  @ Network Required
+  @ Printer Support
+  finger
+  fwhois
+  ncftp
+  nfs-utils
+  pidentd
+  talk
+  ypbind
+  yp-tools
+  ypbind
+  ? KDE {
+    kdenetwork
+  }
+  ? GNOME {
+    rp3
+  }
+  ? KDE {
+    kpppload
+  }
+}
+
+
+
+0 Network Server {
+  @ Network Required
+  talk-server
+  telnet-server
+  rusers-server
+  rwall-server
+  finger-server
+  rsh-server
+  rusers-server
+  telnet-server
+  tftp-server
+  ypserv
+}
+
+
+0 NFS Server {
+  @ Network Required
+  portmap
+  nfs-utils
+}
+
+
+0 --hide SMB (Samba) Server {
+  @ Network Required
+  samba
+  samba-client
+  samba-common
+  tcsh
+}
+
+!alpha:0 --hide IPX/Netware(tm) Connectivity {
+!alpha: @ Network Server
+!alpha:  ipxutils
+!alpha:  mars-nwe
+!alpha:  ncpfs
+!alpha:}
+
+0 Anonymous FTP Server {
+  @ Network Required
+  inetd
+  wu-ftpd
+  anonftp
+}
+
+1 Web Server {
+  @ Network Required
+  apache
+  freetype
+  mod_perl
+  php
+  lynx
+}
+
+0 DNS Name Server {
+  @ Network Required
+  bind
+  bind-utils
+  caching-nameserver
+}
+
+
+0 Emacs {
+  ? X Window System {
+    emacs-X11    
+  }
+  emacs
+  emacs-nox
+}
+
+0 Development {
+  m4
+  autoconf
+  automake
+  i386: dev86
+  ElectricFence
+  bash2
+  bison
+  byacc
+  cdecl
+  ctags
+  tcsh
+  cvs
+  sparc: elftoaout
+  flex
+  cproto
+  gettext
+  diffstat
+  indent
+  texinfo
+  make
+  man-pages
+  patch
+  rcs
+  binutils
+  egcs
+  cpp
+  gdb
+  kernel-headers
+  glibc-devel
+  krb5-libs
+  krb5-devel
+  krb5-configs
+  pmake
+  strace
+  libtool
+  gd-devel
+  gdbm-devel
+  gpm-devel
+  kudzu-devel
+  libgr
+  libgr-devel
+  libpng
+  libpng-devel
+  libtiff
+  libtiff-devel
+  libjpeg
+  libjpeg-devel
+  libtermcap-devel
+  libungif-devel
+  i386: ltrace
+  ncurses-devel
+  newt-devel
+  pciutils-devel
+  perl
+  python
+  readline-devel
+  rpm-devel
+  rpm-build
+  slang-devel
+  sgml-tools
+  jade
+  sgml-common
+  i386: svgalib
+  i386: svgalib-devel
+  zlib-devel
+  egcs-c++
+  linuxconf-devel
+  ? X Window System {
+    XFree86-devel
+    Xaw3d-devel
+    Mesa-devel
+    glib-devel
+    gtk+-devel
+    libglade
+    i386: memprof
+    xpm-devel
+    xxgdb
+  }
+  ? GNOME {
+    ORBit-devel
+    audiofile-devel
+    control-center-devel
+    egcs-objc
+    esound-devel
+    fnlib-devel
+    gnome-core-devel
+    gnome-games
+    gnome-games-devel
+    gnome-libs-devel
+    gnome-objc
+    gnome-objc-devel
+    gnome-pim-devel
+    imlib-devel
+    libghttp-devel
+    libglade-devel
+    libgtop-devel
+    libxml-devel
+  }
+  ? KDE {
+    qt-devel
+    qt1x-devel
+    kdelibs-devel
+    kdesupport-devel
+    pilot-link-devel
+  }
+}
+
+0 Kernel Development {
+  @ Development
+  kernel-source
+  sparc64: egcs64
+}
+
+
+0 --hide Cluster Tools {
+  arpwatch
+  joe
+  lsof
+  lynx
+  minicom
+  nc
+  rdate
+  rsync
+  indexhtml
+  !sparc: statserial
+  tcpdump
+  telnet
+  traceroute
+  ucd-snmp
+  ucd-snmp-utils
+  vim-minimal
+}
+
+
+0 --hide PVM {
+  lam
+  pvm
+  tcsh
+  ? Development {
+    egcs-g77
+    make_pvm
+  }
+  ? X Window System {
+    pvm-gui
+  }
+}
+
+
+0 --hide Piranha {
+  @ Network Required
+  @ Web Server
+  ipvsadm
+  piranha
+  piranha-docs
+  piranha-gui
+}
+
+
+1 Clustering {
+  @ Network Required
+  @ Piranha
+  @ Cluster Tools
+  @ PVM
+  inetd
+  ipchains
+  ipvsadm
+  ppp
+  procps
+  rsh
+  rsh-server
+  rdist
+  rusers
+  rusers-server
+  rwho
+  telnet
+  telnet-server
+}
+
+
+0 --hide Cluster Server {
+  @ Network Required
+  @ Web Server
+  @ Clustering
+  @ Emacs
+}
+

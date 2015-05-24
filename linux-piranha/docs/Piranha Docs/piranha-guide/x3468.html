@@ -1,0 +1,746 @@
+<HTML
+><HEAD
+><TITLE
+>        Trouble-shooting FOS
+      </TITLE
+><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.54"><LINK
+REL="HOME"
+TITLE="piranha"
+HREF="index.html"><LINK
+REL="UP"
+TITLE="      Failover Services (FOS)
+    "
+HREF="ch-fos.html"><LINK
+REL="PREVIOUS"
+TITLE="        Testing FOS
+      "
+HREF="x3296.html"><LINK
+REL="NEXT"
+TITLE="        Additional Information
+      "
+HREF="x3675.html"></HEAD
+><BODY
+CLASS="SECT1"
+BGCOLOR="#FFFFFF"
+TEXT="#000000"
+LINK="#0000FF"
+VLINK="#840084"
+ALINK="#0000FF"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="3"
+ALIGN="center"
+>piranha  </TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="bottom"
+><A
+HREF="x3296.html"
+>Prev</A
+></TD
+><TD
+WIDTH="80%"
+ALIGN="center"
+VALIGN="bottom"
+>  Failover Services (FOS)</TD
+><TD
+WIDTH="10%"
+ALIGN="right"
+VALIGN="bottom"
+><A
+HREF="x3675.html"
+>Next</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="AEN3468"
+>Trouble-shooting FOS</A
+></H1
+><P
+>        This section describes the most common problems and causes/solutions.
+        This section, along with the earlier section describing how to test FOS,
+        should help resolve most situations.
+      </P
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="AEN3477"
+>Common Problems / Questions</A
+></H2
+><DIV
+CLASS="NOTE"
+><P
+></P
+><TABLE
+CLASS="NOTE"
+WIDTH="100%"
+BORDER="0"
+><TR
+><TD
+WIDTH="25"
+ALIGN="CENTER"
+VALIGN="TOP"
+><IMG
+SRC="./stylesheet-images/note.gif"
+HSPACE="5"
+ALT="Note"></TD
+><TH
+ALIGN="LEFT"
+VALIGN="CENTER"
+><B
+>Please Note</B
+></TH
+></TR
+><TR
+><TD
+>&nbsp;</TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+><P
+>            Most of the components that make up Piranha can be run manually
+            (provided you supply the same option switches that they require when
+            run as daemons).  In addition, most components also support a
+            <B
+CLASS="COMMAND"
+>-v</B
+> and/or a <B
+CLASS="COMMAND"
+>--norun</B
+> option to
+            aid in the debugging process.
+          </P
+></TD
+></TR
+></TABLE
+></DIV
+><DIV
+CLASS="SECT3"
+><H3
+CLASS="SECT3"
+><A
+NAME="AEN3489"
+>The <TT
+CLASS="APPLICATION"
+>nanny</TT
+> daemon keeps reporting that a
+            service is not working</A
+></H3
+><P
+>            If you are using <B
+CLASS="COMMAND"
+>send</B
+>/<B
+CLASS="COMMAND"
+>expect</B
+>
+            strings as part of service testing, try using FOS without them.
+            Without these strings, FOS will test the service by connecting to
+            the service's port only.  If this resolves the problem, it is likely
+            that the service is not passing your
+            <B
+CLASS="COMMAND"
+>send</B
+>/<B
+CLASS="COMMAND"
+>expect</B
+> string testing.
+          </P
+></DIV
+><DIV
+CLASS="SECT3"
+><H3
+CLASS="SECT3"
+><A
+NAME="AEN3506"
+>FOS keeps performing failovers even though the services are running</A
+></H3
+><P
+>            Even though the services are running, it does not necessarily mean
+            that FOS can connect to them. The best test for this is to bring up
+            FOS on just one cluster node (which will cause all the services to
+            be started), and use <TT
+CLASS="APPLICATION"
+>telnet</TT
+> from the
+            other cluster node to attempt to connect to the TCP/IP port defined
+            for each service. If <TT
+CLASS="APPLICATION"
+>telnet</TT
+> returns a
+            <SPAN
+CLASS="ERRORNAME"
+>Connection refused</SPAN
+> message, then it is likely
+            that the <TT
+CLASS="APPLICATION"
+>nanny</TT
+> daemon will also fail to
+            connect to the service. Resolve the situation preventing
+            <TT
+CLASS="APPLICATION"
+>telnet</TT
+> from connecting and the
+            <TT
+CLASS="APPLICATION"
+>nanny</TT
+> daemon should stop initiating
+            failovers.
+          </P
+><P
+>            The most common causes for this failure are either that the service
+            has been configured to use a different TCP/IP port number than the
+            one specified in the Piranha configuration file, or the Piranha
+            configuration files are not identical on the cluster nodes.
+          </P
+><P
+>            Next, shut down Piranha on the active node and bring it up on the
+            inactive node, then perform the <TT
+CLASS="APPLICATION"
+>telnet</TT
+>
+            tests in the opposite direction.
+          </P
+><P
+>            Also check the system log files (on both nodes). For any failover
+            condition, Piranha will log the reason.
+          </P
+><P
+>            If Apache is one of the services, make sure that the
+            <B
+CLASS="COMMAND"
+>LISTEN</B
+> port number matches the port number in the
+            Piranha configuration file.
+          </P
+></DIV
+><DIV
+CLASS="SECT3"
+><H3
+CLASS="SECT3"
+><A
+NAME="AEN3528"
+>FOS keeps "ping-ponging" the failover back and forth</A
+></H3
+><P
+>            First see the previous section on "FOS keeps performing failover
+            even though the services are running", and perform the
+            <TT
+CLASS="APPLICATION"
+>telnet</TT
+> testing described.
+          </P
+><P
+>            If you still experience this problem, make sure that your
+            <B
+CLASS="COMMAND"
+>keepalive</B
+>, <B
+CLASS="COMMAND"
+>deadtime</B
+>, and the
+            service's <B
+CLASS="COMMAND"
+>timeout</B
+> values are not too short. Try
+            increasing the values to ensure that Piranha has sufficient time to
+            correctly determine a failure. Also note that
+            <B
+CLASS="COMMAND"
+>deadtime</B
+> should have a value that is a multiple
+            of the <B
+CLASS="COMMAND"
+>keepalive</B
+> value.
+          </P
+></DIV
+><DIV
+CLASS="SECT3"
+><H3
+CLASS="SECT3"
+><A
+NAME="AEN3543"
+>Piranha did not shut down correctly; how do I kill it without
+            causing it to restart?</A
+></H3
+><P
+>            If you must kill the Piranha daemons manually, then you must kill
+            them "from the top down". In other words, you must first kill
+            <TT
+CLASS="APPLICATION"
+>pulse</TT
+>, then
+            <TT
+CLASS="APPLICATION"
+>fos</TT
+>, and then the
+            <TT
+CLASS="APPLICATION"
+>nanny</TT
+> daemons. Killing
+            <TT
+CLASS="APPLICATION"
+>fos</TT
+> first (for example) will cause
+            <TT
+CLASS="APPLICATION"
+>pulse</TT
+> to think a failover should occur.
+          </P
+><P
+>            Use the command <B
+CLASS="COMMAND"
+>kill -s SIGTERM
+              <TT
+CLASS="REPLACEABLE"
+><I
+>&#60;pid&#62;</I
+></TT
+></B
+> first, before
+              using SIGKILL (also known as <B
+CLASS="COMMAND"
+>-9</B
+>). In most
+              cases, killing <TT
+CLASS="APPLICATION"
+>pulse</TT
+> or
+              <TT
+CLASS="APPLICATION"
+>fos</TT
+> with <B
+CLASS="COMMAND"
+>SIGTERM</B
+>
+              will cause it to automatically kill all of its own children.
+          </P
+></DIV
+><DIV
+CLASS="SECT3"
+><H3
+CLASS="SECT3"
+><A
+NAME="AEN3564"
+>When I unplug the active node, a failover occurs, but when I plug it
+            back in, <I
+CLASS="EMPHASIS"
+>another</I
+> failover occurs back to the
+            first node</A
+></H3
+><P
+>            This occurs because the system you unplugged was the primary node,
+            which caused the backup node to become active.  The unplugged node
+            was still active (even if it had lost network connectivity).
+            Plugging it back in created the situation where both nodes were
+            declaring themselves active; in this case, the primary node always
+            wins the stalemate. Therefore, even though the backup node was also
+            the currently active node, it failed over and became inactive.
+          </P
+><P
+>            There are two ways to prevent this:
+          </P
+><P
+></P
+><UL
+><LI
+><P
+>                If possible, make sure the system you unplug is the backup
+                system.  If the backup system is also the active system (meaning
+                that the primary system is inactive), then unplugging the backup
+                system will cause a failover to the primary, but plugging the
+                backup system back in will not cause a second failover (because
+                it will lose the "both nodes active" stalemate).
+              </P
+></LI
+><LI
+><P
+>                The second method will always work no matter which node is
+                unplugged. Just make sure that before the node is plugged back
+                in, you first shut down Piranha. Then plug the node back into
+                the network, and restart Piranha. The node will detect that
+                there is already an active system and will start up as the
+                inactive node.
+              </P
+></LI
+></UL
+></DIV
+><DIV
+CLASS="SECT3"
+><H3
+CLASS="SECT3"
+><A
+NAME="AEN3583"
+>Piranha is causing the private log files for each service to fill up
+            with connect attempt messages</A
+></H3
+><P
+>            ftp/inetd and httpd have individual log files. Each connection
+            attempt (by any software, for any reason) may cause a one or two
+            line entry in these log files.  Because the
+            <TT
+CLASS="APPLICATION"
+>nanny</TT
+> daemons, being part of Piranha's
+            service monitoring, must connect to each service on a regular basis,
+            there is no way to configure Piranha to prevent this, short of
+            disabling service monitoring.
+          </P
+><P
+>            The only work-arounds are to set up a cron or backup entry to "roll
+            over" the file(s), preventing them from filling the disk, and/or
+            increase the timeout parameters in Piranha's configuration file so
+            the services are tested less often and therefore log fewer
+            entries. Other possibilities, such as using symbolic links to the
+            null device, could result in a loss of important security
+            information and are not recommended.
+          </P
+></DIV
+><DIV
+CLASS="SECT3"
+><H3
+CLASS="SECT3"
+><A
+NAME="AEN3595"
+>Can I set up web services that are independent of FOS?</A
+></H3
+><P
+>            Apache can be configured to start multiple httpd daemons that listen
+            on different TCP/IP ports. This means that you can configure one
+            port for use with Piranha, and another that acts independently for
+            other purposes.
+          </P
+><P
+>            Because this is more of an Apache configuration issue than a Piranha
+            configuration issue, information on configuring Apache in this
+            manner is beyond the scope of this document.  Please see the Apache
+            Software Foundation's website (<A
+HREF="http://www.apache.org/"
+TARGET="_top"
+>http://www.apache.org/</A
+>) for
+            additional information on Apache configuration.
+          </P
+></DIV
+><DIV
+CLASS="SECT3"
+><H3
+CLASS="SECT3"
+><A
+NAME="AEN3606"
+>How can I set Piranha up so that I can use the Piranha Web Interface on the
+            inactive node?</A
+></H3
+><P
+>            The Piranha Web Interface is designed to be used on the active node, with the
+            resulting configuration file copied to the inactive system.  It is
+            possible to use the Piranha Web Interface on the inactive node if you start a
+            second httpd daemon that uses a different TCP/IP port from the http
+            service defined in the Piranha configuration file. Note that this is
+            a similar situation to the previous question.
+          </P
+></DIV
+><DIV
+CLASS="SECT3"
+><H3
+CLASS="SECT3"
+><A
+NAME="S3-FOS-FAIL-ONCE"
+>Can I have the services already running on the standby system,
+            instead of having Piranha starting them?</A
+></H3
+><P
+>            Yes, you can replace the <B
+CLASS="COMMAND"
+>start_cmd</B
+> and
+            <B
+CLASS="COMMAND"
+>stop_cmd</B
+> lines in the
+            <TT
+CLASS="FILENAME"
+>/etc/sysconfig/ha/lvs.cf</TT
+> file with commands that do not
+            affect the running services.  However, this will result in a cluster
+            configuration that can only survive one failover; in this case, a
+            second failure will not cause the services to failover to the
+            original node.
+          </P
+></DIV
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="S2-FOS-ERROR-MESSAGES"
+>Error Messages</A
+></H2
+><P
+>          Most of the error messages are self-explanatory. Here are descriptions
+          for some of the less obvious or more critical ones.
+        </P
+><DIV
+CLASS="SECT3"
+><H3
+CLASS="SECT3"
+><A
+NAME="AEN3636"
+>"Service type is not 'fos'"</A
+></H3
+><P
+>            You are attempting to run the <TT
+CLASS="APPLICATION"
+>fos</TT
+> program
+            manually, but the Piranha configuration file does not have
+            <B
+CLASS="COMMAND"
+>service = fos</B
+> set.
+          </P
+></DIV
+><DIV
+CLASS="SECT3"
+><H3
+CLASS="SECT3"
+><A
+NAME="AEN3641"
+>"gratuitous <TT
+CLASS="REPLACEABLE"
+><I
+>xxx</I
+></TT
+> arps finished"</A
+></H3
+><P
+>            Each time a VIP address is created or removed, Piranha sends out ARP
+            broadcasts to notify the network of the change in MAC address for
+            that IP address. This message indicates that those broadcasts have
+            completed.
+          </P
+></DIV
+><DIV
+CLASS="SECT3"
+><H3
+CLASS="SECT3"
+><A
+NAME="AEN3645"
+>"Incompatible heartbeat received -- other system not using identical
+            services"</A
+></H3
+><P
+>            An attempt is being made (either due to mis-matched configuration
+            files or manual startup of a Piranha component) to start one cluster
+            node using <TT
+CLASS="APPLICATION"
+>lvs</TT
+> services and the other
+            node in <TT
+CLASS="APPLICATION"
+>fos</TT
+> services. All nodes in a
+            cluster must use the same Piranha cluster service.
+          </P
+></DIV
+><DIV
+CLASS="SECT3"
+><H3
+CLASS="SECT3"
+><A
+NAME="AEN3650"
+>"Notifying partner WE are taking control!"</A
+></H3
+><P
+>            A situation has occurred where the backup system needs to become (or
+            already is) the active cluster node, and it is telling the primary
+            node (which is trying to become active, or already is) that it must
+            switch to inactive mode.
+          </P
+></DIV
+><DIV
+CLASS="SECT3"
+><H3
+CLASS="SECT3"
+><A
+NAME="AEN3653"
+>"PARTNER HAS TOLD US TO GO INACTIVE!"</A
+></H3
+><P
+>            This message is the partner to the one listed above.  A situation
+            has occurred where the backup system needs to become (or already is)
+            the active cluster node, and it is telling the primary node (which
+            is trying to become active, or already has) that it must switch to
+            inactive mode.
+          </P
+></DIV
+><DIV
+CLASS="SECT3"
+><H3
+CLASS="SECT3"
+><A
+NAME="AEN3656"
+>"Undefined backup node marked as active? -- clearing that..."</A
+></H3
+><P
+>            The Piranha configuration file has set <B
+CLASS="COMMAND"
+>backup_active =
+              1</B
+>, but there is no backup node IP address defined in the
+              file. This message appears if Piranha is then started with its
+              configuration file containing this error.  As the message implies,
+              Piranha is treating the situation as if <B
+CLASS="COMMAND"
+>backup_active =
+              0</B
+> was set in the configuration file instead.
+          </P
+></DIV
+><DIV
+CLASS="SECT3"
+><H3
+CLASS="SECT3"
+><A
+NAME="AEN3661"
+>"pulse: cannot create heartbeat socket -- running as root?"</A
+></H3
+><P
+>            The <TT
+CLASS="APPLICATION"
+>pulse</TT
+> daemon cannot start because it
+            cannot create the TCP/IP socket needed for its heartbeat. The most
+            common reasons for this is either <TT
+CLASS="APPLICATION"
+>pulse</TT
+>
+            is being started by someone with a UID other than 0 (a non-root
+            account), or <TT
+CLASS="APPLICATION"
+>pulse</TT
+> (or another Piranha
+            daemon) is already running.
+          </P
+></DIV
+><DIV
+CLASS="SECT3"
+><H3
+CLASS="SECT3"
+><A
+NAME="AEN3667"
+>"no service active &#38; available..."</A
+></H3
+><P
+>            The most common cause for this message occurs when no services in
+            the Piranha configuration file are set as <B
+CLASS="COMMAND"
+>active =
+            1</B
+>. If they are all set as inactive, then FOS has no
+            services to control or monitor.
+          </P
+></DIV
+><DIV
+CLASS="SECT3"
+><H3
+CLASS="SECT3"
+><A
+NAME="AEN3671"
+>"fos: no failover services defined"</A
+></H3
+><P
+>            Piranha has <B
+CLASS="COMMAND"
+>service = fos</B
+> enabled, but there are
+            no FOS services defined in the configuration file.
+          </P
+></DIV
+></DIV
+></DIV
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="x3296.html"
+>Prev</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="index.html"
+>Home</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="x3675.html"
+>Next</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>Testing FOS</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="ch-fos.html"
+>Up</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>Additional Information</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>

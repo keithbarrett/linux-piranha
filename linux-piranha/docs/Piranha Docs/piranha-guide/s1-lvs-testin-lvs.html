@@ -1,0 +1,314 @@
+<HTML
+><HEAD
+><TITLE
+>        Testing LVS
+      </TITLE
+><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.54"><LINK
+REL="HOME"
+TITLE="Piranha"
+HREF="index.html"><LINK
+REL="UP"
+TITLE="      Linux Virtual Server (LVS)
+    "
+HREF="ch-lvs.html"><LINK
+REL="PREVIOUS"
+TITLE="        Example &#8212; Setting Up a Five-node Cluster
+      "
+HREF="example-layout.html"><LINK
+REL="NEXT"
+TITLE="      The Piranha Web Interface &#8212; Features and Configuration
+    "
+HREF="ch-web-interface.html"></HEAD
+><BODY
+CLASS="SECT1"
+BGCOLOR="#FFFFFF"
+TEXT="#000000"
+LINK="#0000FF"
+VLINK="#840084"
+ALINK="#0000FF"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="3"
+ALIGN="center"
+>Piranha </TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="bottom"
+><A
+HREF="example-layout.html"
+>Prev</A
+></TD
+><TD
+WIDTH="80%"
+ALIGN="center"
+VALIGN="bottom"
+>Linux Virtual Server (LVS)</TD
+><TD
+WIDTH="10%"
+ALIGN="right"
+VALIGN="bottom"
+><A
+HREF="ch-web-interface.html"
+>Next</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="S1-LVS-TESTIN-LVS"
+>Testing LVS</A
+></H1
+><P
+>        Once an LVS cluster is running, any attempt to connect to a service's
+        VIP address (via browser or telnet for example), should result in that
+        connection being answered by one of the real servers. Which real server
+        will depend on the scheduling tool being applied.
+      </P
+><P
+>        The following commands are useful for testing or debugging an LVS setup:
+      </P
+><P
+></P
+><UL
+><LI
+><P
+>            <B
+CLASS="COMMAND"
+>ping</B
+> &#8212; A real server should be able to ping
+            any system on the public network, while only the active LVS router
+            should be able to ping a real server.
+          </P
+></LI
+><LI
+><P
+>            <B
+CLASS="COMMAND"
+>telnet <TT
+CLASS="REPLACEABLE"
+><I
+>&#60;ipaddress&#62;</I
+></TT
+>
+              <TT
+CLASS="REPLACEABLE"
+><I
+>&#60;port&#62;</I
+></TT
+></B
+> &#8212; Using
+              <B
+CLASS="COMMAND"
+>telnet</B
+> to connect to a virtual server VIP
+              address should result in a real server responding to that attempt.
+          </P
+></LI
+><LI
+><P
+>            <B
+CLASS="COMMAND"
+>ipchains -l</B
+> &#8212; Lists the currently defined
+            rules for forwarding ip messages.
+          </P
+></LI
+><LI
+><P
+>            <B
+CLASS="COMMAND"
+>ps ax</B
+> &#8212; When done on the active LVS Router,
+            the <B
+CLASS="COMMAND"
+>pulse</B
+>, <B
+CLASS="COMMAND"
+>lvs</B
+>, and
+            <B
+CLASS="COMMAND"
+>nanny</B
+> daemons should all appear in the list. When
+            done on the backup router, only <B
+CLASS="COMMAND"
+>pulse</B
+> will be
+            shown.
+          </P
+></LI
+><LI
+><P
+>            <B
+CLASS="COMMAND"
+>ipvsadm -l</B
+> &#8212; when done on the active LVS
+            router, will list all the active services running on real servers,
+            along with their scheduling method and weight.
+          </P
+></LI
+><LI
+><P
+>            <B
+CLASS="COMMAND"
+>lynx</B
+> &#8212; <B
+CLASS="COMMAND"
+>lynx</B
+> is a
+            text-based web browser and can be useful for testing the load
+            balancing of the real server services. For example:
+          </P
+><P
+></P
+><OL
+TYPE="1"
+><LI
+><P
+>                Create or modify a web page on each real server that identifies
+                which real server the page resides on. The best type of page is
+                one that just displays a message like "This is real server #1",
+                with no other content. The page should also include a very large
+                comment section (a few KB worth of comments) that will add bulk
+                to the page loading without affecting the display.
+              </P
+></LI
+><LI
+><P
+>                On the active LVS router, execute the following command:
+              </P
+><TABLE
+BORDER="0"
+BGCOLOR="#E0E0E0"
+WIDTH="90%"
+><TR
+><TD
+><PRE
+CLASS="SCREEN"
+><B
+CLASS="COMMAND"
+>while true; do lynx -dump <TT
+CLASS="REPLACEABLE"
+><I
+>nnn.nnn.nnn.nnn</I
+></TT
+>; done</B
+>
+              </PRE
+></TD
+></TR
+></TABLE
+><P
+>                where
+                <B
+CLASS="COMMAND"
+><TT
+CLASS="REPLACEABLE"
+><I
+>nnn.nnn.nnn.nnn</I
+></TT
+></B
+> is
+                the VIP address for the real server's web service.
+              </P
+></LI
+><LI
+><P
+>                If load balancing is functioning, you should see the
+                display alternate between "This is real server #1",
+                "This is real server #2", and so on.
+              </P
+><P
+>                While <B
+CLASS="COMMAND"
+>lynx</B
+> is running, use the
+                <B
+CLASS="COMMAND"
+>ipvsadm -l</B
+> command to examine the current
+                status of the services and their scheduling weight.
+              </P
+></LI
+></OL
+></LI
+></UL
+></DIV
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="example-layout.html"
+>Prev</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="index.html"
+>Home</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="ch-web-interface.html"
+>Next</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>Example &#8212; Setting Up a Five-node Cluster</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="ch-lvs.html"
+>Up</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>The Piranha Web Interface &#8212; Features and Configuration</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>

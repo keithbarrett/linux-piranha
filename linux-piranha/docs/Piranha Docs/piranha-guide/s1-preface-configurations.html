@@ -1,0 +1,714 @@
+<HTML
+><HEAD
+><TITLE
+>        Sample Configurations
+      </TITLE
+><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.54"><LINK
+REL="HOME"
+TITLE="piranha"
+HREF="index.html"><LINK
+REL="UP"
+TITLE="      Introduction
+    "
+HREF="ch-preface.html"><LINK
+REL="PREVIOUS"
+TITLE="      Introduction
+    "
+HREF="ch-preface.html">
+</HEAD
+><BODY
+CLASS="SECT1"
+BGCOLOR="#FFFFFF"
+TEXT="#000000"
+LINK="#0000FF"
+VLINK="#840084"
+ALINK="#0000FF"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="3"
+ALIGN="center"
+>piranha  </TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="bottom"
+><A
+HREF="ch-preface.html"
+>Prev</A
+></TD
+><TD
+WIDTH="80%"
+ALIGN="center"
+VALIGN="bottom"
+>Introduction</TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="S1-PREFACE-CONFIGURATIONS"
+>Sample Configurations</A
+></H1
+><P
+>        While Piranha can be configured in a variety of different ways, the
+        configurations can be broken into two major categories:
+      </P
+><P
+></P
+><UL
+><LI
+><P
+>            Configurations based on FOS
+          </P
+></LI
+><LI
+><P
+>            Configurations based on LVS
+          </P
+></LI
+></UL
+><P
+>        The choice of FOS or LVS as the underlying technology for your Piranha
+        cluster has an impact on the hardware requirements and the service
+        levels that can be supported.  Let's take a look at some sample
+        configurations, and discuss the implications of each.
+      </P
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="S2-PREFACE-TYPICAL-FOS"
+>FOS Configurations</A
+></H2
+><P
+>          Piranha clusters based on FOS consist of two Linux systems.  Each
+          system must be sized to support the full load anticipated for all
+          services
+          <A
+NAME="AEN96"
+HREF="#FTN.AEN96"
+>[1]</A
+>
+          .
+          This is necessary, because at any given time only one system (the
+          <I
+CLASS="FIRSTTERM"
+>active node</I
+>) provides the services to your
+          customers.
+        </P
+><P
+>          During the initial configuration of an FOS cluster, one system is
+          defined as the <I
+CLASS="FIRSTTERM"
+>primary node</I
+>, and the other as
+          the <I
+CLASS="FIRSTTERM"
+>backup node</I
+>.  This distinction is made to
+          determine which system will be declared active should both systems
+          find themselves in the active state at the same time.  In such a case,
+          the primary node will "win".
+        </P
+><P
+>          The active node responds to service requests through a
+          <I
+CLASS="FIRSTTERM"
+>virtual IP</I
+> (or VIP) address.  The VIP address
+          is an IP address that is distinct from the active node's normal IP
+          address.
+        </P
+><P
+>          The other system (the <I
+CLASS="FIRSTTERM"
+>inactive node</I
+>) does not
+          actually run the services; instead it monitors the services on the
+          active node, and makes sure the active node is still functional.  If
+          the inactive node detects a problem with either the active node or the
+          services running on it, a failover will be initiated.
+        </P
+><P
+>          During a failover, the following steps are performed:
+        </P
+><P
+></P
+><UL
+><LI
+><P
+>              The active node is directed to shut down all services (if it is
+              still running and has network connectivity)
+            </P
+></LI
+><LI
+><P
+>              The inactive node starts all services
+            </P
+></LI
+><LI
+><P
+>              The active node disables its use of the VIP address (if it is
+              still running and has network connectivity)
+            </P
+></LI
+><LI
+><P
+>              The inactive node is now the active node, and enables its use of
+              the VIP address
+            </P
+></LI
+><LI
+><P
+>              If it is still running and has network connectivity, the
+              formerly-active node is now the inactive node, begins monitoring
+              the services and general well-being of the active node
+            </P
+></LI
+></UL
+><P
+>          Let's take a look at the most basic of FOS configurations.
+        </P
+><DIV
+CLASS="SECT3"
+><H3
+CLASS="SECT3"
+><A
+NAME="S3-PREFACE-BASIC-FOS"
+>A Basic FOS Configuration</A
+></H3
+><P
+>            <A
+HREF="s1-preface-configurations.html#GR-PREFACE-TYPICAL-FOS"
+>Figure 1</A
+> shows a Piranha FOS
+            cluster.  In this case, the active node provides Web and FTP
+            services, while the inactive node monitors the active node and its
+            services.
+          </P
+><P
+>            While not shown in this diagram, it is possible for both the active
+            and inactive nodes to be used for other, less critical, services
+            while still performing their roles in an FOS cluster.  For example,
+            the inactive system could run <TT
+CLASS="APPLICATION"
+>inn</TT
+> to
+            manage an NNTP newsfeed.  However, care must be taken to either keep
+            sufficient capacity free should a failover occur, or to select
+            services that could be shut down (with little ill effect) in the
+            event of a failover.  Again, from a system administration
+            standpoint, it may be desirable to dedicate the primary and backup
+            nodes to cluster-related services, even if this does result in less
+            then 100% utilization of system resources.
+          </P
+><DIV
+CLASS="FIGURE"
+><A
+NAME="GR-PREFACE-TYPICAL-FOS"
+></A
+><P
+><IMG
+SRC="./figs/preface/typical-fos.gif"></P
+><P
+><B
+>Figure 1. A Simple FOS Configuration</B
+></P
+></DIV
+><P
+>            One aspect of an FOS cluster is that the capacity of the entire
+            cluster is limited to the capacity of the currently-active node.
+            This means that bringing additional capacity online will require
+            upgrades (or replacements) for each system.  While the FOS
+            technology means that such upgrades can be done without impacting
+            service availability, doing upgrades in such an environment means a
+            greater exposure to possible service outages, should the active node
+            fail while the inactive node is being upgraded or replaced.
+          </P
+><P
+>            It should also be noted that FOS is <I
+CLASS="EMPHASIS"
+>not</I
+> a
+            data-sharing technology.  In other words, if a service reads and
+            writes data on the active node, FOS includes no mechanism to
+            replicate that data on the inactive node.  This means data used by
+            the services on an FOS cluster must fall into one or two categories:
+          </P
+><P
+></P
+><UL
+><LI
+><P
+>                The data does not change; it is read-only
+              </P
+></LI
+><LI
+><P
+>                The data is not read-only, but it is made available to both the
+                active and inactive node equally.
+              </P
+></LI
+></UL
+><P
+>            While the sample configuration shown above might be appropriate for
+            a Website containing static pages, it would not be appropriate for a
+            busy FTP site, particularly one where new files are constantly
+            uploaded by users of the FTP site.  Let's look at one way an FOS
+            cluster can use more dynamic data.
+          </P
+></DIV
+><DIV
+CLASS="SECT3"
+><H3
+CLASS="SECT3"
+><A
+NAME="S3-PREFACE-FOS-SHARED-DB"
+>An FOS Configuration With Shared Data</A
+></H3
+><P
+>            As noted above, some mechanism must be used to make read-write data
+            available to both nodes in an FOS cluster.  One such solution is to
+            use NFS-accessible storage.  By using this approach, failure of
+            the active node will not result in the data being inaccessible from
+            the inactive node.
+          </P
+><P
+>            However, care must be taken to prevent the NFS-accessible storage
+            from becoming a single point of failure.  Otherwise, the loss of
+            this storage would result in a service outage, even if both the
+            active and inactive nodes were otherwise healthy.  The solution, as
+            shown in <A
+HREF="s1-preface-configurations.html#GR-PREFACE-FOS-SHARED-DB"
+>Figure 2</A
+>, is to use RAID
+            and other technologies to implement a fault-resistant NFS server.
+          </P
+><DIV
+CLASS="FIGURE"
+><A
+NAME="GR-PREFACE-FOS-SHARED-DB"
+></A
+><P
+><IMG
+SRC="./figs/preface/fos-shared-db.gif"></P
+><P
+><B
+>Figure 2. An FOS Configuration With Shared Data</B
+></P
+></DIV
+><P
+>            While it's certainly possible that various modifications to the
+            basic FOS cluster configuration are possible, in general, the
+            options are limited to one system providing all services, while a
+            backup system monitors those services, and initiates a failover if
+            and when required.  For more flexibility and/or more capacity, an
+            alternative is required.  That alternative is LVS.
+          </P
+></DIV
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="S2-PREFACE-TYPICAL-LVS"
+>Typical LVS Configurations</A
+></H2
+><P
+>          In many ways, an LVS cluster can be thought of as an FOS cluster with
+          a single difference &#8212; instead of actually providing the
+          services, the active node in an LVS cluster
+          <I
+CLASS="EMPHASIS"
+>routes</I
+> requests to one or more servers that
+          actually provide the services.  These additional servers (called
+          <I
+CLASS="FIRSTTERM"
+>real servers</I
+>) are load-balanced by the active
+          node (in LVS terms, the <I
+CLASS="FIRSTTERM"
+>active router</I
+>).
+        </P
+><P
+>          As in an FOS cluster, there are two systems that share the
+          responsibility of ensuring that one of the two systems is active,
+          while the other (the <I
+CLASS="FIRSTTERM"
+>inactive router</I
+>) stands by
+          to initiate a failover should the need arise.  However, that is where
+          the similarities end.
+        </P
+><P
+>          Because the active router's main responsibility is to accept incoming
+          service requests and direct them to the appropriate real server, it is
+          necessary for the active router to keep track of the real servers'
+          status, and to determine which real server should receive the next
+          inbound service request.  Therefore, the active router monitors every
+          service on each real server.  In the event of a service failure on a
+          given real server, the active router will stop directing service
+          requests to it until the service again becomes operative.
+        </P
+><P
+>          In addition, the active router can optionally use one of several
+          scheduling metrics to determine which real server is most capable of
+          handling the next service request.  The available scheduling metrics
+          are:
+        </P
+><P
+></P
+><UL
+><LI
+><P
+>              Round robin
+            </P
+></LI
+><LI
+><P
+>              Least connections
+            </P
+></LI
+><LI
+><P
+>              Weighted round robin
+            </P
+></LI
+><LI
+><P
+>              Weighted least connections
+            </P
+></LI
+></UL
+><P
+>          We'll go into more detail regarding scheduling in <A
+HREF="ch-lvs.html"
+>the LVS chapter</A
+>; however, for now the important thing to realize is
+          that the active router can take into account the real servers'
+          activity and (optionally) an arbitrarily-assigned weighting factor
+          when routing service requests.  This means that's it's possible to
+          create a group of real servers using a variety of hardware
+          configurations, and have the active router load each real server
+          evenly.
+        </P
+><DIV
+CLASS="SECT3"
+><H3
+CLASS="SECT3"
+><A
+NAME="S3-PREFACE-SIMPLE-LVS"
+>A Basic LVS Configuration</A
+></H3
+><P
+>            <A
+HREF="s1-preface-configurations.html#GR-PREFACE-TYPICAL-LVS"
+>Figure 3</A
+> shows a typical Piranha LVS
+            cluster with three real servers providing Web service.  In this
+            configuration, the real servers are connected to a dedicated private
+            network segment.  The routers have two network interfaces:
+          </P
+><P
+></P
+><UL
+><LI
+><P
+>                One interface on the public network
+              </P
+></LI
+><LI
+><P
+>                One interface on a private network
+              </P
+></LI
+></UL
+><P
+>            Service requests directed to the cluster's VIP address are received
+            by the active router on one interface, and then passed to the most
+            appropriate (as determined by the schedule/weighting algorithm in
+            use) real server through the other interface.  In this way, the
+            routers are also able to act the part of firewalls; passing only
+            valid service-related traffic to the real servers' private network.
+          </P
+><DIV
+CLASS="FIGURE"
+><A
+NAME="GR-PREFACE-TYPICAL-LVS"
+></A
+><P
+><IMG
+SRC="./figs/preface/typical-lvs.gif"></P
+><P
+><B
+>Figure 3. A Typical LVS Configuration</B
+></P
+></DIV
+><P
+>            An LVS cluster may use one of three different methods of routing
+            traffic to the real servers:
+          </P
+><P
+></P
+><UL
+><LI
+><P
+>                Network Address Translation (NAT), which enables a private-LAN
+                architecture
+              </P
+></LI
+><LI
+><P
+>                Direct routing, which enables LAN-based routing
+              </P
+></LI
+><LI
+><P
+>                Tunneling (IP encapsulation), which makes possible WAN-level
+                distribution of real servers
+              </P
+></LI
+></UL
+><P
+>            In <A
+HREF="s1-preface-configurations.html#GR-PREFACE-TYPICAL-LVS"
+>Figure 3</A
+>, NAT routing is in use.
+            While NAT-based routing makes it possible to operate the real
+            servers in a more sheltered environment, it does exact additional
+            overhead on the router, as it must translate the addresses of all
+            traffic to and from each real server.  In practice, this limits the
+            size of a NAT-routed LVS cluster to approximately ten to twenty real
+            servers
+            <A
+NAME="AEN190"
+HREF="#FTN.AEN190"
+>[2]</A
+>
+            .
+          </P
+><P
+>            This overhead is not present when using tunneled or direct routing,
+            because in these routing techniques the real servers respond
+            directly to the requesting systems.  With tunneling there is a bit
+            more overhead than with direct routing, but it is minimal,
+            especially when compared with NAT-based routing.
+          </P
+><P
+>            One interesting aspect of an LVS-based cluster is that the real
+            servers do not have to run a particular operating system.  Since the
+            routing techniques used by LVS are all based on industry-standard
+            TCP/IP features, any platform that supports a TCP/IP stack can
+            conceivably be part of an LVS cluster
+            <A
+NAME="AEN194"
+HREF="#FTN.AEN194"
+>[3]</A
+>
+            .
+          </P
+></DIV
+><DIV
+CLASS="SECT3"
+><H3
+CLASS="SECT3"
+><A
+NAME="S3-PREFACE-COMPLEX-LVS"
+>A More Complex LVS Configuration</A
+></H3
+><P
+>            <A
+HREF="s1-preface-configurations.html#GR-PREFACE-COMPLEX-LVS"
+>Figure 4</A
+> shows a more esoteric
+            approach to deploying LVS.  This configuration shows a possible
+            approach for deploying clusters comprised of an extremely large
+            number of systems.  The approach taken by this configuration is to
+            share a single pool of real servers between multiple routers (and
+            their associated backup routers).
+          </P
+><DIV
+CLASS="FIGURE"
+><A
+NAME="GR-PREFACE-COMPLEX-LVS"
+></A
+><P
+><IMG
+SRC="./figs/preface/complex-lvs.gif"></P
+><P
+><B
+>Figure 4. A More Complex LVS Configuration</B
+></P
+></DIV
+><P
+>            Because each active router is responsible for routing requests
+            directed to a unique VIP address (or set of addresses), this
+            configuration would normally present the appearance of multiple
+            clusters.  However, <I
+CLASS="FIRSTTERM"
+>round-robin DNS</I
+> can be
+            used to resolve a single hostname to one of the VIP addresses
+            managed by one of the active routers.  Therefore, each service
+            request will be directed to each active router in turn, effectively
+            spreading the traffic across all active routers.
+          </P
+></DIV
+></DIV
+></DIV
+><H3
+CLASS="FOOTNOTES"
+>Notes</H3
+><TABLE
+BORDER="0"
+CLASS="FOOTNOTES"
+WIDTH="100%"
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+WIDTH="5%"
+><A
+NAME="FTN.AEN96"
+HREF="s1-preface-configurations.html#AEN96"
+>[1]</A
+></TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+WIDTH="95%"
+><P
+>              Although there is no technological requirement that each system be
+              identically configured (only that each system be capable of
+              supporting all services), from a system administration perspective
+              it makes a great deal of sense to configure each system
+              identically.
+            </P
+></TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+WIDTH="5%"
+><A
+NAME="FTN.AEN190"
+HREF="s1-preface-configurations.html#AEN190"
+>[2]</A
+></TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+WIDTH="95%"
+><P
+>                It is possible to alleviate the impact of NAT-based routing by
+                constructing more complex cluster configurations.  For example,
+                a two-level approach may be created where the active router
+                load-balances between several real servers, each of which is
+                itself an active router with its own group of real servers
+                actually providing the service.
+              </P
+></TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+WIDTH="5%"
+><A
+NAME="FTN.AEN194"
+HREF="s1-preface-configurations.html#AEN194"
+>[3]</A
+></TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+WIDTH="95%"
+><P
+>                The scheduling options may be somewhat restricted if a real
+                server's operating system does not support the
+                <B
+CLASS="COMMAND"
+>uptime</B
+>, <B
+CLASS="COMMAND"
+>ruptime</B
+>, or
+                <B
+CLASS="COMMAND"
+>rup</B
+> commands.  These commands are used to
+                dynamically adjust the weights used in some of the scheduling
+                methods.
+              </P
+></TD
+></TR
+></TABLE
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="ch-preface.html"
+>Prev</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="index.html"
+>Home</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>Introduction</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="ch-preface.html"
+>Up</A
+></TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>
